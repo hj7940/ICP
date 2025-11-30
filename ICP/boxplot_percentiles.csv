@@ -1,0 +1,11 @@
+Class;Variable;Min;Q1;Median;Q3;Max;Lower_Whisker;Upper_Whisker
+Class1;P1_Time;20;28;31;36;70;20;48
+Class1;P2_Time;38;53;60;66;104;38;85,5
+Class1;P3_Time;63;84;93;103;140;63;131,5
+Class2;P1_Time;20;28;32;36;56;20;48
+Class2;P2_Time;39;52;58,5;64;86;39;82
+Class2;P3_Time;64;80;89;96,25;135;64;120,625
+Class3;P1_Time;16;24;26;29;39;16,5;36,5
+Class3;P2_Time;35;52;58;62;80;37;77
+Class3;P3_Time;52;73;81;87,25;113;52;108,625
+Class4;P2_Time;35;58;60;64;71;49;71

@@ -5,12 +5,12 @@ import glob
 import os
 from scipy.signal import find_peaks
 
+
+# zapis do wynikow do csv, wyliczenie "cech" poszczegolnych klas: AmpICP, latencji i amplitud p1, p2, p3, pola pod krzywa; okreslenie ile pikow wykrywa dana metoda
+
 # TODO osobna funkcja licząca pochodne 1. i 2. stopnia
 # TODO draft pierwsze podejscie do algorytmów
-# TODO git repozytorium
-# blad w osi x, osi y oraz xy
 # klasa 1 - p1 najwyzszy, klasa 2 - p2 najwyzszy, p1>p3, klasa 3 - p2 najwyzszy, p1<p3 
-# czujniki srodmiaszowe
 # istniejace ilustracje ok, mozna tlumaczyc na polski (grafika zaadaptowane)
 
 # składowe, sposób pomiaru, state of the art, 
@@ -33,49 +33,6 @@ def load_data(base_path, n_classes=4):
         data[f"Class{i}_signals"] = [pd.read_csv(f) for f in csv_files]
 
     return data
-
-
-# def plot_signal_with_peaks(signal_df, peaks_df, file_list, class_id, example_index):
-#     """
-#     Rysuje przykładowy sygnał z nałożonymi pikami oraz drugą pochodną.
-#     """
-#     # wybór sygnału
-#     file_name = os.path.basename(file_list[example_index]).replace(".csv", "")
-#     signal = signal_df[example_index]
-    
-#     # pobranie pików
-#     peaks_row = peaks_df[peaks_df["File"] == file_name]
-#     peaks = peaks_row.iloc[0, 1:].dropna().astype(int).values if not peaks_row.empty else []
-
-#     # dane sygnału
-#     t = signal.iloc[:, 0].values
-#     x = signal.iloc[:, 1].values
-
-#     # druga pochodna
-#     dx = np.gradient(x, t, edge_order=2)
-#     d2x = np.gradient(dx, t, edge_order=2)
-
-#     # wykres
-#     plt.figure(figsize=(10, 6))
-    
-#     plt.subplot(2, 1, 1)
-#     plt.plot(t, x, label="Sygnał ICP")
-#     for p in peaks:
-#         plt.scatter(t[p], x[p], color="red", s=40, zorder=5)
-#     plt.title(f"Class {class_id} — {file_name}")
-#     plt.ylabel("Amplituda")
-#     plt.legend()
-#     plt.grid(True)
-
-#     plt.subplot(2, 1, 2)
-#     plt.plot(t, d2x, color='orange', label="Druga pochodna")
-#     plt.xlabel("Czas [s]")
-#     plt.ylabel("x''(t)")
-#     plt.legend()
-#     plt.grid(True)
-
-#     plt.tight_layout()
-#     plt.show()
 
 def plot_signal_with_peaks(signal_df, peaks_df, file_list, class_id, example_index, detection_func=None, show_curvature=False):
     """
@@ -218,7 +175,8 @@ def run_peak_detection(base_path, detection_methods, tolerance=10):
                 # przypadek: klasyczne trzy piki
                 true_peaks = [p for p in p_values if p != -1]
                 peak_status = "normal"
-
+            # szukany jest najbliższy ręcznemu wykryty pik, tzn, jesli metoda wykryła
+            # 10 pikow, to i tak do liczenia bledu beda brane 3
             # zastosuj wszystkie metody detekcji
             for method_name, method_func in detection_methods.items():
                 try:
@@ -270,7 +228,8 @@ def run_peak_detection(base_path, detection_methods, tolerance=10):
                     "Mean_Error": mean_error,
                     "Hit_Rate": hit_rate,
                     "Mean_Y_Error": mean_y_error,
-                    "Mean_XY_Error": mean_xy_error
+                    "Mean_XY_Error": mean_xy_error,
+                    "Peak_Count": len(detected_peaks)
                     # "Mean_Nearest_Distance": mean_nearest_distance
                 })
 
@@ -279,13 +238,13 @@ def run_peak_detection(base_path, detection_methods, tolerance=10):
     return results_df
 
 def analyze_results(results_df):
-    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error"]
+    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error", "Peak_Count"]
     classes = sorted(results_df["Class"].unique())
 
     for class_name in classes:
         df_class = results_df[results_df["Class"] == class_name]
         print(f"\n Klasa: {class_name} — liczba sygnałów: {df_class['File'].nunique()}")
-        print(df_class.groupby("Method")[metrics].mean().round(3))
+        print(df_class.groupby("Method")[metrics].mean().round(4))
 
         fig, axes = plt.subplots(1, 4, figsize=(15, 4))
         fig.suptitle(f"Wskaźniki jakości detekcji — {class_name}", fontsize=14, fontweight="bold")
@@ -309,16 +268,41 @@ def analyze_results(results_df):
         plt.tight_layout()
         plt.show()
 
-def analyze_results_grouped(results_df):
-    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error"]
-    classes = sorted(results_df["Class"].unique())
+def save_with_increment(df, base_name="methods_results", ext=".csv"):
+    """
+    Zapisuje DataFrame jako base_name.csv,
+    a jeśli plik istnieje, to base_name_2.csv, base_name_3.csv, itd.
+    """
+    filename = base_name + ext
+    counter = 2
 
+    # jeśli istnieje, szukaj kolejnych nazw
+    while os.path.exists(filename):
+        filename = f"{base_name}_{counter}{ext}"
+        counter += 1
+
+    df.to_csv(filename, index=False)
+    print(f"Zapisano: {filename}")
+    
+    
+def analyze_results_grouped(results_df):
+    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error", "Peak_Count"]
+    classes = sorted(results_df["Class"].unique())
+    
+    out_df = pd.DataFrame(columns=["Method"] + metrics + ["Class"])
+    
     for class_name in classes:
         df_class = results_df[results_df["Class"] == class_name]
         print(f"\n Klasa: {class_name} — liczba sygnałów: {df_class['File'].nunique()}")
-        print(df_class.groupby("Method")[metrics].mean().round(3))
-
-        fig, axes = plt.subplots(1, 4, figsize=(15, 4))
+        dane_df = df_class.groupby("Method")[metrics].mean().round(3)
+        dane_df["Class"] = class_name
+        print(dane_df)
+        # save_with_increment(dane_df, base_name="methods_results", ext=".csv")
+        for idx, row in dane_df.iterrows():
+            out_df.loc[len(out_df)] = [idx] + list(row[metrics]) + [row["Class"]]
+            
+        # wykresy
+        fig, axes = plt.subplots(1, 5, figsize=(15, 4))
         fig.suptitle(f"Wskaźniki jakości detekcji — {class_name}", fontsize=14, fontweight="bold")
 
         methods = list(df_class["Method"].unique())
@@ -347,7 +331,11 @@ def analyze_results_grouped(results_df):
         plt.tight_layout()
         plt.show()
         
-def detect_concave_maxima(t, x, d2x_threshold=0, prominence=0):
+    save_with_increment(out_df, base_name="methods", ext=".csv")
+
+
+        
+def detect_concave_maxima(t, x, d2x_threshold=0, prominence=0, threshold=None):
     """
     Wykrywa lokalne maksima sygnału (peaki) w obszarach, gdzie druga pochodna < d2x_threshold.
     Pasuje do frameworka `run_peak_detection_experiments`.
@@ -376,23 +364,24 @@ def detect_concave_maxima(t, x, d2x_threshold=0, prominence=0):
     concave_mask = d2x < d2x_threshold
 
     # znajdź lokalne maksima w całym sygnale
-    peaks, _ = find_peaks(x, prominence=prominence)
+    peaks, _ = find_peaks(x, threshold=threshold, prominence=prominence)
 
     # wybierz tylko te, które leżą w wklęsłych fragmentach
     concave_peaks = [p for p in peaks if concave_mask[p]]
 
     return concave_peaks
 
-def modified_scholkmann(signal, max_scale=None):
+def modified_scholkmann(signal, scale=1):
     """
     Modified-Scholkmann peak detection.
     Zwraca indeksy stabilnych maksimów w wielu skalach.
     """
-    x = signal - np.mean(signal)  # detrending (usunięcie trendu)
+    # x = signal - np.mean(signal)  # detrending (usunięcie trendu)
+    x = signal
     N = len(x)
     
-    if max_scale is None:
-        max_scale = N // 4  # ok. 1/4 długości sygnału, jak w tekście
+    # if max_scale is None:
+    max_scale = N // scale  # ok. 1/4 długości sygnału, jak w tekście
 
     # Tworzymy macierz lokalnych maksimów
     LMS = np.zeros((max_scale, N), dtype=int)
@@ -407,12 +396,12 @@ def modified_scholkmann(signal, max_scale=None):
     maxima_strength = LMS.sum(axis=0)
 
     # Piki = punkty, które były maksimum w wielu skalach
-    threshold = np.percentile(maxima_strength, 90)  # tylko te najstabilniejsze
+    threshold = np.percentile(maxima_strength, 95)  # tylko te najstabilniejsze
     peaks = np.where(maxima_strength >= threshold)[0]
 
     return peaks, maxima_strength
 
-def detect_peaks_curvature(t, x, d2x_threshold=0, prominence=0):
+def detect_peaks_curvature(t, x, d2x_threshold=0, prominence=0, threshold=None):
     """
     Detekcja pików na podstawie lokalnych maksimów krzywizny.
     """
@@ -428,14 +417,15 @@ def detect_peaks_curvature(t, x, d2x_threshold=0, prominence=0):
     concave_mask = d2x < d2x_threshold
 
     # wykryj piki w krzywiźnie
-    peaks, _ = find_peaks(curvature, prominence=prominence)
+    # threshold to jak bardzo "wybija się" pik nad pozostałe punkty
+    peaks, _ = find_peaks(curvature, threshold=threshold, prominence=prominence)
 
     # wybierz tylko piki w obszarach wklęsłych
     concave_peaks = [p for p in peaks if concave_mask[p]]
 
     return np.array(concave_peaks)
 
-def detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular"):
+def detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular", min_len=3):
     """
     Detekcja pików na podstawie odległości od linii łączącej końce regionu wklęsłego.
     mode = "perpendicular"  → metoda 3 (prostopadła odległość)
@@ -461,7 +451,7 @@ def detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular"):
 
     # Iteracja po regionach wklęsłych
     for start, end in zip(region_starts, region_ends):
-        if end - start < 3:
+        if end - start < min_len:
             continue  # pomiń zbyt krótkie regiony
 
         x_seg = x[start:end + 1]
@@ -488,6 +478,333 @@ def detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular"):
 
     return np.array(peaks)
 
+def sweep_threshold_for_method(
+        base_path,
+        method_name,
+        detection_func,
+        threshold_values,
+        tolerance=10):
+    """
+    Sweeping parametru 'threshold' dla jednej metody detekcji.
+    Zwraca DataFrame z wynikami dla każdej wartości threshold.
+    """
+    all_rows = []
+
+    for thr in threshold_values:
+        print(f"Testowanie threshold = {thr:.6f}")
+
+        # opakowanie funkcji z aktualnym threshold
+        def wrapped_method(t, x):
+            return detection_func(t, x, d2x_threshold=0, threshold=thr)
+
+        # uruchom detekcję
+        results = run_peak_detection(
+            base_path,
+            detection_methods={method_name: wrapped_method},
+            tolerance=tolerance
+        )
+
+        # dodaj kolumnę ze sweep parametrem
+        results["Threshold"] = thr
+
+        all_rows.append(results)
+
+    return pd.concat(all_rows, ignore_index=True)
+
+def sweep_parameter_for_method(
+        base_path,
+        method_name,
+        detection_func,
+        sweep_param_name,
+        sweep_values,
+        fixed_params=None,
+        tolerance=10):
+    """
+    Ogólny sweep parametru dla dowolnej metody detekcji pików.
+    
+    Parameters
+    ----------
+    base_path : str
+        Folder z danymi.
+    method_name : str
+        Nazwa metody.
+    detection_func : callable
+        Funkcja wykrywania pików.
+    sweep_param_name : str
+        Nazwa parametru, który będziemy zmieniać (np. 'threshold', 'min_len').
+    sweep_values : iterable
+        Wartości, po których robimy sweep.
+    fixed_params : dict, optional
+        Pozostałe parametry funkcji, które pozostają stałe.
+    tolerance : int
+        Maksymalna odległość indeksowa uznawana za trafienie.
+    """
+    if fixed_params is None:
+        fixed_params = {}
+
+    all_rows = []
+
+    for val in sweep_values:
+        print(f"Testowanie {sweep_param_name} = {val}")
+        
+        # Funkcja opakowująca z aktualnym parametrem
+        def wrapped_method(t, x):
+            params = fixed_params.copy()
+            params[sweep_param_name] = val
+            return detection_func(t, x, **params)
+
+        # Uruchom detekcję
+        results = run_peak_detection(
+            base_path,
+            detection_methods={method_name: wrapped_method},
+            tolerance=tolerance
+        )
+
+        results[sweep_param_name] = val
+        all_rows.append(results)
+
+    return pd.concat(all_rows, ignore_index=True)
+
+def plot_error_and_peakcount_by_class(results_df, method_name, param_name="Threshold"):
+    classes = sorted(results_df["Class"].unique())
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
+
+    for ax, cls in zip(axes, classes):
+        df = results_df[
+            (results_df["Method"] == method_name) &
+            (results_df["Class"] == cls)
+        ]
+
+        grouped = df.groupby(param_name).agg({
+            "Mean_XY_Error": "mean",
+            "Peak_Count": "mean"
+        }).reset_index()
+
+        # Oś lewa
+        ax1 = ax
+        ax1.plot(
+            grouped[param_name], grouped["Mean_XY_Error"],
+            marker="o", linewidth=2, color="blue", label="Mean XY Error"
+        )
+        ax1.set_xlabel(param_name)
+        ax1.set_ylabel("Mean XY Error", color="blue")
+        ax1.tick_params(axis="y", labelcolor="blue")
+        ax1.grid(True, alpha=0.3)
+
+        # Oś prawa
+        ax2 = ax1.twinx()
+        ax2.plot(
+            grouped[param_name], grouped["Peak_Count"],
+            marker="s", linewidth=2, color="red", label="Peak Count"
+        )
+        ax2.set_ylabel("Peak Count", color="red")
+        ax2.tick_params(axis="y", labelcolor="red")
+
+        # -------------------------
+        # Dodanie prostokąta zakresu poprawnej liczby pików
+        # -------------------------
+        if cls in ["Class1", "Class2", "Class3"]:
+            ymin, ymax = 2.5, 3.5
+        else:  # Class4
+            ymin, ymax = 0.5, 1.5
+
+        # Prostokąt na osi Peak_Count (prawa oś Y)
+        ax2.axhspan(
+            ymin, ymax,
+            color="green",
+            alpha=0.15,
+            zorder=0
+        )
+
+        ax1.set_title(f"{method_name} — {cls}")
+
+    plt.tight_layout()
+    plt.show()
+
+def compute_statistics(data):
+    """
+    Oblicza statystyki dla klas 1-4:
+    - liczba próbek
+    - średnia i odchylenie amplitudy
+    - czasy (latencje) P1, P2, P3 + odch. standardowe
+    - pole pod krzywą (AUC) + odch. standardowe
+    Zwraca DataFrame i zapisuje CSV.
+    """
+    stats_list = []
+
+    for i in range(1, 5):
+        class_name = f"Class{i}"
+        signals = data[f"{class_name}_signals"]
+        peaks_df = data[f"{class_name}_peaks"]
+
+        n_samples = len(signals)
+
+        # amplituda sygnałów
+        max_amplitudes = [sig.iloc[:,1].max() for sig in signals]
+        mean_amp = np.mean(max_amplitudes)
+        std_amp = np.std(max_amplitudes)
+
+        # czasy pików
+        p_times = { 'P1': [], 'P2': [], 'P3': [] }
+        p_amps = { 'P1': [], 'P2': [], 'P3': [] }
+        
+        for idx, row in peaks_df.iterrows():
+            file_name = row['File']
+            sig_idx = next((j for j,sig in enumerate(data[f"{class_name}_files"]) 
+                            if file_name in sig), None)
+            
+            if sig_idx is not None:
+                sig = signals[sig_idx]
+                t = sig.iloc[:,0].values
+                y = sig.iloc[:, 1].values
+                
+                for j, p_label in enumerate(['P1','P2','P3']):
+                    p = row[p_label]
+                    if pd.notna(p) and p != -1:
+                        # indeks p do czasu
+                        p_times[p_label].append(t[int(p)])
+                        p_amps[p_label].append(y[int(p)]) 
+        
+
+        mean_times = {k: np.mean(v) if v else np.nan for k,v in p_times.items()}
+        std_times  = {k: np.std(v) if v else np.nan for k,v in p_times.items()}
+        
+        # średnia i std amplitudy pików
+        mean_amps = {k: np.mean(v) if len(v) > 0 else np.nan for k, v in p_amps.items()}
+        std_amps  = {k: np.std(v) if len(v) > 0 else np.nan for k, v in p_amps.items()}
+
+
+        # pole pod krzywą (AUC)
+        aucs = [np.trapezoid(sig.iloc[:,1].values, sig.iloc[:,0].values) for sig in signals]
+        mean_auc = np.mean(aucs)
+        std_auc = np.std(aucs)
+
+        stats_list.append({
+            'Class': class_name,
+            'N_Samples': n_samples,
+            'Mean_Amplitude': mean_amp,
+            'Std_Amplitude': std_amp,
+            
+            'P1_mean_amp': mean_amps['P1'],
+            'P1_std_amp':  std_amps['P1'],
+            'P2_mean_amp': mean_amps['P2'],
+            'P2_std_amp':  std_amps['P2'],
+            'P3_mean_amp': mean_amps['P3'],
+            'P3_std_amp':  std_amps['P3'],
+            
+            'P1_mean_time': mean_times['P1'],
+            'P1_std_time': std_times['P1'],
+            'P2_mean_time': mean_times['P2'],
+            'P2_std_time': std_times['P2'],
+            'P3_mean_time': mean_times['P3'],
+            'P3_std_time': std_times['P3'],
+            'Mean_AUC': mean_auc,
+            'Std_AUC': std_auc
+        })
+
+    stats_df = pd.DataFrame(stats_list)
+    print(stats_df)
+    save_with_increment(stats_df, "class_statistics", ".csv")
+    # stats_df.to_csv("class_statistics.csv", index=False)
+    return stats_df
+
+
+def plot_all_signals_with_peaks(data, results_df, method_name):
+    """
+    Rysuje 4 subplotsy: Class1..Class4
+    Każdy subplot:
+        - wszystkie sygnały (alpha=0.1)
+        - średni sygnał
+        - gęstość pików ręcznych (green)
+        - gęstość pików automatycznych (red)
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
+
+    for i in range(1, 5):
+        ax = axes[i-1]
+        class_name = f"Class{i}"
+
+        signals = data[f"{class_name}_signals"]
+        peaks_df = data[f"{class_name}_peaks"]
+
+        # --- Rysowanie wszystkich sygnałów ---
+        common_t = signals[0].iloc[:, 0].values
+        all_x = []
+
+        for sig in signals:
+            t = sig.iloc[:, 0].values
+            x = sig.iloc[:, 1].values
+
+            ax.plot(t, x, color="black", alpha=0.07, linewidth=0.7)
+            all_x.append(x)
+
+        # --- średnia krzywa fali ICP ---
+        mean_signal = np.mean(all_x, axis=0)
+        ax.plot(common_t, mean_signal, color="blue", linewidth=2.0, label="Średni sygnał")
+        ax.margins(y=0, x=0)
+
+        # --- gęstość punktów P1,P2,P3 ---
+        manual_points_t = []
+        auto_points_t   = []
+
+        # automatyczne piki z results_df
+        df_method = results_df[
+            (results_df["Class"] == class_name) &
+            (results_df["Method"] == method_name)
+        ]
+
+        for idx, row in peaks_df.iterrows():
+            file_name = row["File"]
+            sig_idx = next((j for j,f in enumerate(data[f"{class_name}_files"]) if file_name in f), None)
+            sig = signals[sig_idx]
+            t = sig.iloc[:,0].values
+
+            # ręczne
+            for p in ["P1", "P2", "P3"]:
+                val = row[p]
+                if pd.notna(val) and val != -1:
+                    manual_points_t.append(t[int(val)])
+
+            # automatyczne
+            row_auto = df_method[df_method["File"] == file_name]
+            if len(row_auto) > 0:           
+                peaks = row_auto.iloc[0]["Detected_Peaks"]
+
+                # upewnij się, że jest to np. tablica NumPy integerów
+                if isinstance(peaks, list):
+                    peaks = np.array(peaks, dtype=int)
+                elif isinstance(peaks, np.ndarray) and peaks.dtype != int:
+                    peaks = peaks.astype(int)
+                
+                auto_points_t.extend(t[peaks])
+  
+        ax_hist = ax.twinx()
+        
+        # narysuj gęstość punktów
+        if len(manual_points_t) > 0:
+            ax_hist.hist(manual_points_t, bins=50, color="green",
+                    alpha=0.3, label="Ręczne piki")
+
+        if len(auto_points_t) > 0:
+            ax_hist.hist(auto_points_t, bins=50, color="red",
+                    alpha=0.3, label="Automatyczne piki")
+
+        ax.set_title(class_name)
+        ax.set_xlabel("Czas [s]")
+        ax.set_ylabel("Amplituda")
+        ax.grid(True, alpha=0.3)
+        
+        handles1, labels1 = ax.get_legend_handles_labels()
+        handles2, labels2 = ax_hist.get_legend_handles_labels()
+        ax.legend(handles1 + handles2, labels1 + labels2, loc="upper right")
+        #ax.legend()
+   
+    fig.suptitle(f'{method_name}')
+    plt.tight_layout()
+    plt.show()
+
 # def compare_with_annotated(auto_peaks, manual_peaks, tolerance=10):
 #     """
 #     Porównuje automatycznie znalezione piki z ręcznymi (P1, P2, P3).
@@ -510,162 +827,63 @@ def detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular"):
 base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
 data = load_data(base_path)
 
-# przykład: Class 1, 200-ty sygnał
-plot_signal_with_peaks(
-    signal_df=data["Class1_signals"],
-    peaks_df=data["Class1_peaks"],
-    file_list=data["Class1_files"],
-    class_id=1,
-    example_index=200
-)
+pd.options.display.float_format = '{:.4f}'.format
 
     
 methods = {
-    #"concave": lambda t, x: detect_concave_maxima(t, x, d2x_threshold=0.002, prominence=0.02),
-    "concave2": lambda t, x: detect_concave_maxima(t, x, d2x_threshold=0, prominence=0),
-    #"concave3": lambda t, x: detect_concave_maxima(t, x, d2x_threshold=0, prominence=0.02),
-    "modified_scholkmann": lambda t, x: modified_scholkmann(x)[0],
-    "curvature": lambda t, x: detect_peaks_curvature(t, x, d2x_threshold=0),
-    "line_perpendicular": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular"),
-    "line_vertical": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="vertical"),
-
+    "concave": lambda t, x: detect_concave_maxima(t, x, d2x_threshold=0, prominence=0, threshold=0),
+    "modified_scholkmann1": lambda t, x: modified_scholkmann(x, 1)[0],
+    "curvature": lambda t, x: detect_peaks_curvature(t, x, d2x_threshold=0, threshold=0),
+    #"line_perpendicular": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular", min_len=3),
+    "line_vertical": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="vertical", min_len=3),
 }
 
-#results = run_peak_detection(base_path, detection_methods=methods)
+# results = run_peak_detection(base_path, detection_methods=methods)
 
 
-#analyze_results_grouped(results) # wykresy
+# analyze_results_grouped(results) # wykresy
 
-example_index = 70  # który sygnał z każdej klasy chcesz pokazać (np. 0, 1, 2, 3)
-
-# ---- RYSOWANIE ----
-fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-axes = axes.flatten()
-
-for class_id in range(1, 5):
-    class_name = f"Class{class_id}"
-
-    # Ścieżki do plików
-    folder_path = os.path.join(base_path, class_name)
-    peaks_path = os.path.join(base_path, f"{class_name}_peaks.csv")
-
-    csv_files = sorted(glob.glob(os.path.join(folder_path, f"{class_name}_example_*.csv")))
-    peaks_df = pd.read_csv(peaks_path)
-
-    if len(csv_files) == 0 or peaks_df.empty:
-        print(f"⚠️ Brak danych dla {class_name}")
-        continue
-
-    # wybór sygnału
-    idx = min(example_index, len(csv_files) - 1)
-    file_path = csv_files[idx]
-    file_name = os.path.basename(file_path).replace(".csv", "")
-    df = pd.read_csv(file_path)
-
-    t = df.iloc[:, 0].values
-    x = df.iloc[:, 1].values
-
-    # pobierz ręczne piki (po nazwie pliku lub po indeksie)
-    peaks_row = peaks_df[peaks_df["File"] == file_name]
-    if peaks_row.empty:
-        peaks = peaks_df.iloc[idx, 1:].dropna().astype(int).values
-    else:
-        peaks = peaks_row.iloc[0, 1:].dropna().astype(int).values
-
-    # --- Rysowanie ---
-    ax = axes[class_id - 1]
-    ax.plot(t, x, color="black", lw=1.2, label="Sygnał ICP")
-    if len(peaks) > 0:
-        ax.scatter(t[peaks], x[peaks], color="red", s=40, zorder=5, label="Piki ręczne")
-
-    ax.set_title(f"{class_name} — przykład {idx+1}")
-    ax.set_xlabel("Czas [s]")
-    ax.set_ylabel("Amplituda")
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="upper right")
-
-plt.tight_layout()
-plt.show()
+# for method in methods:
+#     plot_all_signals_with_peaks(data, results, method)
 
 
-# kolory tła (zielony → czerwony)
-bg_colors = ["#a8e6a1", "#d7ef9f", "#fff59d", "#f28b82"]
 
-# litery podpisów (a), (b), (c), (d)
-labels = ["(a)", "(b)", "(c)", "(d)"]
+# threshold_values = np.linspace(-0.5, 0.5, 10)
 
-fig, axes = plt.subplots(1, 4, figsize=(16, 3))  # jedna linia, 4 kolumny
-axes = axes.flatten()
+# results_sweep = sweep_threshold_for_method(
+#     base_path,
+#     method_name="concave",
+#     detection_func=detect_concave_maxima,
+#     threshold_values=threshold_values
+# )
 
-example_index = 70  # który przykład z każdej klasy
-base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
+# plot_error_and_peakcount_by_class(results_sweep, "concave")
 
-for class_id in range(1, 5):
-    class_name = f"Class{class_id}"
+# threshold_values = range(5, 20, 2)  # min_len od 3 do 15 próbek
 
-    # Ścieżki
-    folder_path = os.path.join(base_path, class_name)
-    peaks_path = os.path.join(base_path, f"{class_name}_peaks.csv")
+# results_sweep = sweep_parameter_for_method(
+#     base_path,
+#     method_name="concave",
+#     detection_func=detect_concave_maxima,
+#     sweep_param_name="d2x_threshold",
+#     sweep_values=threshold_values,
+#     #fixed_params={"d2x_threshold":0}
+# )
 
-    csv_files = sorted(glob.glob(os.path.join(folder_path, f"{class_name}_example_*.csv")))
-    peaks_df = pd.read_csv(peaks_path)
+# plot_error_and_peakcount_by_class(results_sweep, "concave", param_name="d2x_threshold")
 
-    if len(csv_files) == 0 or peaks_df.empty:
-        print(f"⚠️ Brak danych dla {class_name}")
-        continue
+# results_sweep_2 = sweep_parameter_for_method(
+#     base_path,
+#     method_name="curvature",
+#     detection_func=detect_peaks_curvature,
+#     sweep_param_name="d2x_threshold",
+#     sweep_values=threshold_values,
+#     #fixed_params={"d2x_threshold":0}
+# )
 
-    idx = min(example_index, len(csv_files) - 1)
-    file_path = csv_files[idx]
-    file_name = os.path.basename(file_path).replace(".csv", "")
-    df = pd.read_csv(file_path)
+# plot_error_and_peakcount_by_class(results_sweep, "curvature", param_name="d2x_threshold")
 
-    t = df.iloc[:, 0].values
-    x = df.iloc[:, 1].values
 
-    # Ręczne piki (jeśli są)
-    peaks_row = peaks_df[peaks_df["File"] == file_name]
-    if peaks_row.empty:
-        peaks = peaks_df.iloc[idx, 1:].dropna().astype(int).values
-    else:
-        peaks = peaks_row.iloc[0, 1:].dropna().astype(int).values
+# stats_df = compute_statistics(data)
 
-    # --- Rysowanie ---
-    ax = axes[class_id - 1]
-    ax.set_facecolor(bg_colors[class_id - 1])
-    ax.plot(t, x, color="black", lw=1.3)
 
-    # Piki tylko dla klas 1–3
-    if class_id < 4 and len(peaks) > 0:
-        for j, p in enumerate(peaks):
-            ax.scatter(t[p], x[p], color="red", s=30, zorder=5)
-            ax.text(t[p], x[p] + 0.02 * (x.max() - x.min()), f"P{j+1}",
-                    color="black", fontsize=14, ha="center", va="bottom", clip_on=True)
-
-    y_margin = 0.15 * (x.max() - x.min())  # 10% dodatkowego miejsca u góry
-    ax.set_ylim(x.min() - 0.5*y_margin, x.max() + y_margin)
-
-            
-    ax.set_xticks([])
-    ax.set_yticks([])
-    
-    #if class_id == 1:
-    
-    #axes[0].set_ylabel("ciśnienie", fontsize=16, labelpad=5)
-    ax.set_xlabel("")
-    ax.set_ylabel("")
-    fig.text(-0.01, 0.5, "ciśnienie", va='center', ha='left', rotation='vertical', fontsize=16)
-    fig.text(0.5, -0.03, "czas", ha='center', fontsize=16)
-
-    
-    # Brak siatki, brak legendy, brak tytułu
-    ax.grid(False)
-    ax.set_title("")
-
-    # Podpis (a), (b), (c), (d)
-    ax.text(0.03, 0.95, labels[class_id - 1],
-    transform=ax.transAxes, fontsize=14, fontweight="bold", va="top", ha="left")
-
-# Wyrównanie osi, odstępy
-plt.tight_layout(w_pad=0.5)
-plt.savefig("p1p2p3.pdf", bbox_inches='tight', pad_inches=0.15)
-plt.show()

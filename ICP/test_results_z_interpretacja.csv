@@ -1,0 +1,127 @@
+Class;Variable;N;Shapiro_Statistic;Shapiro_p;Anderson_Darling;Anderson_Darling_p;KS_Statistic;KS_p;;;=== Class1 ===
+Class1;P1_Time;300;0,921896492;2,05E-11;3,284178704;[0.569 0.648 0.777 0.906 1.078];0,104835753;0,002522346;;;
+Class1;P2_Time;300;0,975618089;5,50E-05;1,364616166;[0.569 0.648 0.777 0.906 1.078];0,068035888;0,118766949;;;P1_Time (N=300):
+Class1;P3_Time;300;0,989296429;0,026494594;0,659441172;[0.569 0.648 0.777 0.906 1.078];0,062266215;0,187170913;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+Class1;P1_Amp;300;0,911703427;2,83E-12;7,94904222;[0.569 0.648 0.777 0.906 1.078];0,122157312;0,0002328;;; Anderson-Darling: A=3.2842 -> Nie normalny
+Class1;P2_Amp;300;0,947487757;7,21E-09;3,920057853;[0.569 0.648 0.777 0.906 1.078];0,077043926;0,053834872;;; Kolmogorov-Smirnov: p=0.0025 -> Nie normalny
+Class1;P3_Amp;300;0,98101031;0,000517593;1,247579481;[0.569 0.648 0.777 0.906 1.078];0,042485446;0,635173248;;;
+Class2;P1_Time;300;0,985861548;0,004822222;0,716400033;[0.569 0.648 0.777 0.906 1.078];0,056258272;0,287576341;;;P2_Time (N=300):
+Class2;P2_Time;300;0,982628242;0,001064029;1,079002401;[0.569 0.648 0.777 0.906 1.078];0,053764759;0,338975598;;; Shapiro-Wilk: p=0.0001 -> Nie normalny
+Class2;P3_Time;300;0,97463191;3,74E-05;1,566451073;[0.569 0.648 0.777 0.906 1.078];0,06986654;0,101934841;;; Anderson-Darling: A=1.3646 -> Nie normalny
+Class2;P1_Amp;300;0,920318062;1,49E-11;7,506567727;[0.569 0.648 0.777 0.906 1.078];0,112037094;0,000979244;;; Kolmogorov-Smirnov: p=0.1188 -> Normalny
+Class2;P2_Amp;300;0,767498975;2,57E-20;21,18627872;[0.569 0.648 0.777 0.906 1.078];0,189370826;6,79E-10;;;
+Class2;P3_Amp;300;0,952557167;2,82E-08;3,183237809;[0.569 0.648 0.777 0.906 1.078];0,082312727;0,032381261;;;P3_Time (N=300):
+Class3;P1_Time;300;0,986961973;0,008239667;1,346891166;[0.569 0.648 0.777 0.906 1.078];0,068948783;0,11010793;;; Shapiro-Wilk: p=0.0265 -> Nie normalny
+Class3;P2_Time;300;0,995313716;0,501495769;0,49331054;[0.569 0.648 0.777 0.906 1.078];0,049533163;0,439275136;;; Anderson-Darling: A=0.6594 -> Nie normalny
+Class3;P3_Time;300;0,99789472;0,970086956;0,214644368;[0.569 0.648 0.777 0.906 1.078];0,032405009;0,900747402;;; Kolmogorov-Smirnov: p=0.1872 -> Normalny
+Class3;P1_Amp;300;0,989689258;0,03235624;0,520384045;[0.569 0.648 0.777 0.906 1.078];0,038218816;0,758332295;;;
+Class3;P2_Amp;300;0,625585624;4,37E-25;37,20043944;[0.569 0.648 0.777 0.906 1.078];0,266159623;2,98E-19;;;P1_Amp (N=300):
+Class3;P3_Amp;300;0,907695588;1,35E-12;7,957467577;[0.569 0.648 0.777 0.906 1.078];0,126564711;0,000119748;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+Class4;P1_Time;0;;;;;;;;; Anderson-Darling: A=7.9490 -> Nie normalny
+Class4;P2_Time;100;0,938450795;0,000155291;1,074564249;[0.555 0.632 0.759 0.885 1.053];0,10633586;0,1938074;;; Kolmogorov-Smirnov: p=0.0002 -> Nie normalny
+Class4;P3_Time;0;;;;;;;;;
+Class4;P1_Amp;0;;;;;;;;;P2_Amp (N=300):
+Class4;P2_Amp;100;0,671302455;1,21E-13;8,216570099;[0.555 0.632 0.759 0.885 1.053];0,226732707;5,33E-05;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+Class4;P3_Amp;0;;;;;;;;; Anderson-Darling: A=3.9201 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0538 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0005 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=1.2476 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.6352 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;=== Class2 ===
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0048 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=0.7164 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.2876 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0011 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=1.0790 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.3390 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=1.5665 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.1019 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=7.5066 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0010 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=21.1863 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0000 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=3.1832 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0324 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;=== Class3 ===
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0082 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=1.3469 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.1101 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.5015 -> Normalny
+;;;;;;;;;;; Anderson-Darling: A=0.4933 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.4393 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Time (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.9701 -> Normalny
+;;;;;;;;;;; Anderson-Darling: A=0.2146 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.9007 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0324 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=0.5204 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.7583 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=37.2004 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0000 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Amp (N=300):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=7.9575 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0001 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;=== Class4 ===
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Time (N=0):
+;;;;;;;;;;; Shapiro-Wilk: p=nan -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=nan -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=nan -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Time (N=100):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0002 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=1.0746 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.1938 -> Normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Time (N=0):
+;;;;;;;;;;; Shapiro-Wilk: p=nan -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=nan -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=nan -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P1_Amp (N=0):
+;;;;;;;;;;; Shapiro-Wilk: p=nan -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=nan -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=nan -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P2_Amp (N=100):
+;;;;;;;;;;; Shapiro-Wilk: p=0.0000 -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=8.2166 -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=0.0001 -> Nie normalny
+;;;;;;;;;;;
+;;;;;;;;;;;P3_Amp (N=0):
+;;;;;;;;;;; Shapiro-Wilk: p=nan -> Nie normalny
+;;;;;;;;;;; Anderson-Darling: A=nan -> Nie normalny
+;;;;;;;;;;; Kolmogorov-Smirnov: p=nan -> Nie normalny

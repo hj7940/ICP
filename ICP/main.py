@@ -270,7 +270,8 @@ def run_peak_detection(base_path, detection_methods, tolerance=10):
                     "Mean_Error": mean_error,
                     "Hit_Rate": hit_rate,
                     "Mean_Y_Error": mean_y_error,
-                    "Mean_XY_Error": mean_xy_error
+                    "Mean_XY_Error": mean_xy_error,
+                    "Peak_Count": len(detected_peaks)
                     # "Mean_Nearest_Distance": mean_nearest_distance
                 })
 
@@ -279,7 +280,7 @@ def run_peak_detection(base_path, detection_methods, tolerance=10):
     return results_df
 
 def analyze_results(results_df):
-    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error"]
+    metrics = ["Mean_Error", "Hit_Rate", "Mean_Y_Error", "Mean_XY_Error", "Peak_Count"]
     classes = sorted(results_df["Class"].unique())
 
     for class_name in classes:
@@ -531,10 +532,10 @@ methods = {
 
 }
 
-#results = run_peak_detection(base_path, detection_methods=methods)
+results = run_peak_detection(base_path, detection_methods=methods)
 
 
-#analyze_results_grouped(results) # wykresy
+analyze_results_grouped(results) # wykresy
 
 example_index = 70  # który sygnał z każdej klasy chcesz pokazać (np. 0, 1, 2, 3)
 
