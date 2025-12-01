@@ -273,6 +273,64 @@ def generate_boxplots_percentiles(df, output_folder):
     percentiles_df = pd.DataFrame(all_percentiles)
     percentiles_df.to_csv(os.path.join(output_folder, "boxplot_percentiles.csv"), index=False)
 
+def generate_boxplots_amplitudes(df, output_folder):
+    """
+    Tworzy boxploty dla amplitud P1, P2, P3 osobno dla każdej klasy.
+    Zapisuje PNG oraz CSV z percentylami.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+    all_percentiles = []
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    axes = axes.flatten()
+
+    for i, cls in enumerate(sorted(df["Class"].unique())):
+        df_cls = df[df["Class"] == cls]
+        box_data = []
+        labels = []
+
+        for p in ["P1", "P2", "P3"]:
+            col = f"{p}_Amp"
+            values = df_cls[col].dropna().values
+            if len(values) == 0:
+                continue
+
+            box_data.append(values)
+            labels.append(p)
+
+            # percentyle — całkowicie analogicznie jak w wersji dla czasów
+            percentiles = np.percentile(values, [0, 25, 50, 75, 100])
+            Q1 = np.percentile(values, 25)
+            Q3 = np.percentile(values, 75)
+            IQR = Q3 - Q1
+            lower_whisker = max(values.min(), Q1 - 1.5 * IQR)
+            upper_whisker = min(values.max(), Q3 + 1.5 * IQR)
+
+            all_percentiles.append({
+                "Class": cls,
+                "Variable": col,
+                "Min": percentiles[0],
+                "Q1": percentiles[1],
+                "Median": percentiles[2],
+                "Q3": percentiles[3],
+                "Max": percentiles[4],
+                "Lower_Whisker": lower_whisker,
+                "Upper_Whisker": upper_whisker
+            })
+
+        if box_data:
+            axes[i].boxplot(box_data, labels=labels, whis=1.5)
+            axes[i].set_title(f"{cls} — Amplitudes")
+            axes[i].set_ylabel("Amplitude")
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_folder, "boxplots_amplitudes_all_classes.png"))
+    plt.close()
+
+    # CSV z percentylami amplitud
+    percentiles_df = pd.DataFrame(all_percentiles)
+    percentiles_df.to_csv(os.path.join(output_folder, "boxplot_percentiles_amplitudes.csv"), index=False)
+
 
 def generate_violinplots(df, output_folder):
     """
@@ -312,15 +370,16 @@ data = load_data(r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulse
 
 df_raw = compute_statistics_raw(data)
 
-test_results_df =run_all_normality_tests(df_raw)
+# test_results_df =run_all_normality_tests(df_raw)
 # df_raw.to_csv("all_raw_values.csv", index=False)
-print(test_results_df)
+# print(test_results_df)
 
-test_results_df.to_csv("test_results_w_diff.csv", index=False)
+# test_results_df.to_csv("test_results_w_diff.csv", index=False)
 
 
-print_normality_summary(test_results_df)
-# output_folder = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\plots"
+#print_normality_summary(test_results_df)
+output_folder = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\plots"
 # generate_boxplots_percentiles(df_raw, output_folder)
 # generate_violinplots(df_raw, output_folder)
 
+generate_boxplots_amplitudes(df_raw, output_folder)

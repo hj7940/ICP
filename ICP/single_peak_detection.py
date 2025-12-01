@@ -9,7 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import glob
 import os
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, hilbert, find_peaks_cwt
+import itertools
+import time
+# from wersja2 import sweep_parameter_for_method
 # from main import load_data # moze uda sie lepiej to rozwiazac
 # from wersja2 import save_with_increment
 
@@ -55,7 +58,7 @@ def load_data(base_path):
 
 
 # %% ------- DETEKCJA ----------
-def single_peak_detection(peak_name, class_name, dataset, method_name, peak_ranges):
+def single_peak_detection(peak_name, class_name, dataset, method_name, peak_ranges, peak_amps):
     """
     Wykrywa piki w określonym przedziale czasowym.
 
@@ -83,6 +86,7 @@ def single_peak_detection(peak_name, class_name, dataset, method_name, peak_rang
         
     detect = METHODS[method_name]
     t_start, t_end = peak_ranges[class_name][peak_name]
+    a_start, a_end = peak_amps[class_name][peak_name]
     
     detected_all = []
 
@@ -99,15 +103,15 @@ def single_peak_detection(peak_name, class_name, dataset, method_name, peak_rang
         peaks = np.array(peaks, dtype=int)
 
         # filtruj tylko te w zadanym zakresie czasu
-        peaks_in_range = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
-
+        peaks = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
+        peaks_in_range = peaks[(y[peaks] >= a_start) & (y[peaks] <= a_end)]
         detected_all.append(peaks_in_range)
 
     return detected_all
 
 
 # %%----------- METODY -------------
-def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
+def concave(signal, d2x_threshold=-0.002, prominence=0, threshold=None):
     """
     Wykrywa lokalne maksima sygnału (peaki) w obszarach, gdzie druga pochodna < d2x_threshold.
 
@@ -140,7 +144,7 @@ def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
 
     return np.array(concave_peaks)
 
-def modified_scholkmann(signal, scale=1):
+def modified_scholkmann(signal, scale=1, threshold=99):
     """
     Modified-Scholkmann peak detection.
     Zwraca indeksy stabilnych maksimów w wielu skalach.
@@ -165,12 +169,12 @@ def modified_scholkmann(signal, scale=1):
     maxima_strength = LMS.sum(axis=0)
 
     # Piki = punkty, które były maksimum w wielu skalach
-    threshold = np.percentile(maxima_strength, 95)  # tylko te najstabilniejsze
+    threshold = np.percentile(maxima_strength, threshold)  # tylko te najstabilniejsze
     peaks = np.where(maxima_strength >= threshold)[0]
 
     return np.array(peaks)
 
-def curvature(signal, d2x_threshold=0, prominence=0, threshold=None):
+def curvature(signal, d2x_threshold=-0.0015, prominence=0.005, threshold=None):
     """
     Detekcja pików na podstawie lokalnych maksimów krzywizny.
     """
@@ -194,7 +198,7 @@ def curvature(signal, d2x_threshold=0, prominence=0, threshold=None):
 
     return np.array(concave_peaks)
 
-def line_distance(signal, d2x_threshold=0, mode="perpendicular", min_len=3):
+def line_distance(signal, d2x_threshold=0.02, mode="perpendicular", min_len=3):
     """
     Detekcja pików na podstawie odległości od linii łączącej końce regionu wklęsłego.
     mode = "perpendicular"  → metoda 3 (prostopadła odległość)
@@ -248,6 +252,54 @@ def line_distance(signal, d2x_threshold=0, mode="perpendicular", min_len=3):
         peaks.append(peak_idx)
 
     return np.array(peaks)  
+
+def hilbert_envelope(signal, prominence=0):
+    analytic_signal = hilbert(signal)
+    envelope = np.abs(analytic_signal)  # amplituda "obwiedni"
+
+    # detekcja pików na envelope
+    peaks, _ = find_peaks(envelope, prominence)
+    
+    return np.array(peaks)
+
+def wavelet(signal, prominence=0, w_range=(1,10), step=1):
+    # Continuous Wavelet Transform
+    widths = np.arange(w_range[0], w_range[1] + 1, step)  # zakres szerokości pików
+    peaks = find_peaks_cwt(signal, widths)
+    
+    return np.array(peaks)
+
+def detect_ma_crossings(signal, window_fast=5, window_slow=20,
+                        min_distance=30, lookback=20):
+    """
+    Wykrywanie fast/slow MA crossing.
+    Zwraca listę zakresów (start_idx, end_idx) = (crossing - lookback, crossing).
+
+    x: sygnał
+    window_fast: okno szybkiej średniej
+    window_slow: okno wolnej średniej
+    min_distance: minimalny odstęp w próbkach między crossingami
+    lookback: zakres "wstecz" od crossing do analizy piku
+    """
+
+    # --- średnie ruchome ---
+    xf = pd.Series(signal).rolling(window_fast, min_periods=1).mean().to_numpy()
+    xs = pd.Series(signal).rolling(window_slow, min_periods=1).mean().to_numpy()
+
+    crossings = []
+    last_cross = -min_distance
+
+    for i in range(1, len(signal)):
+        # przecięcie: fast przebija slow
+        crossed = ((xf[i] >= xs[i] and xf[i-1] < xs[i-1]) or
+                   (xf[i] <= xs[i] and xf[i-1] > xs[i-1]))
+
+        if crossed and (i - last_cross >= min_distance):
+            start = max(0, i - lookback)
+            crossings.append((start, i))
+            last_cross = i
+
+    return crossings
 
     
 # %%-------- WYKRESY I WIZUALIZACJE ---------------
@@ -346,7 +398,7 @@ def plot_all_signals_with_peaks(data, results_df, method_name):
     plt.tight_layout()
     plt.show()
   
-def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
+def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, tolerance=5):
     """
     Parameters
     ----------
@@ -387,7 +439,14 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
                 "Mean_XY_Error": np.nan,
                 "Peak_Count": 0,
                 "Detected_Peaks": [],
-                "Reference_Peaks": ref_idx 
+                "Reference_Peaks": ref_idx,
+                "TP": 0,
+                "FP": len(peaks),
+                "FN": 0,
+                "Precision": np.nan,
+                "Recall": np.nan,
+                "F1": np.nan,
+                "Accuracy": np.nan
             })
             continue
 
@@ -404,7 +463,14 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
                 "Mean_XY_Error": np.nan,
                 "Peak_Count": 0,
                 "Detected_Peaks": [],
-                "Reference_Peaks": ref_idx 
+                "Reference_Peaks": ref_idx,
+                "TP": 0,
+                "FP": len(peaks),
+                "FN": 0,
+                "Precision": np.nan,
+                "Recall": np.nan,
+                "F1": np.nan,
+                "Accuracy": np.nan
             })
             continue
 
@@ -415,16 +481,23 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
         dy = abs(y_detected - y_ref)
         dxy = np.sqrt(dx**2 + dy**2)
         
-        # if len(peaks) == 0:
-        #     metrics_list.append({
-        #         "Class": class_name,
-        #         "Peak": peak_name,
-        #         "Mean_X_Error": np.nan,
-        #         "Mean_Y_Error": np.nan,
-        #         "Mean_XY_Error": np.nan,
-        #         "Peak_Count": 0
-        #     })
             
+        ref_list = [ref_idx] if not isinstance(ref_idx, (list, np.ndarray)) else list(ref_idx)
+        detected = list(peaks)
+
+        TP = 0
+        for r in ref_list:
+            if any(abs(d - r) <= tolerance for d in detected):
+                TP += 1
+
+        FP = len(detected) - TP
+        FN = len(ref_list) - TP
+
+        Precision = TP / (TP + FP) if (TP + FP) > 0 else np.nan
+        Recall = TP / (TP + FN) if (TP + FN) > 0 else np.nan
+        F1 = 2 * Precision * Recall / (Precision + Recall) if (Precision + Recall) > 0 else np.nan
+        Accuracy = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else np.nan
+        
         metrics_list.append({
             "Class": class_name,
             "Peak": peak_name,
@@ -434,14 +507,21 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
             "Mean_XY_Error": np.mean(dxy),
             "Peak_Count": len(peaks),
             "Reference_Peaks": ref_idx, 
-            "Detected_Peaks": list(peaks)
+            "Detected_Peaks": list(peaks),
+            "TP": TP,
+            "FP": FP,
+            "FN": FN,
+            "Precision": Precision,
+            "Recall": Recall,
+            "F1": F1,
+            "Accuracy": Accuracy
         })
         
     df_metrics = pd.DataFrame(metrics_list)
     
-    if df_metrics.empty:
-    # Zwróć pusty DataFrame z odpowiednimi kolumnami, żeby groupby nie padło
-        df_metrics = pd.DataFrame(columns=["Class", "Peak", "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error", "Peak_Count"])
+    # if df_metrics.empty:
+    # # Zwróć pusty DataFrame z odpowiednimi kolumnami, żeby groupby nie padło
+    #     df_metrics = pd.DataFrame(columns=["Class", "Peak", "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error", "Peak_Count"])
         
     
 
@@ -555,6 +635,428 @@ def plot_class_peaks_grid(dataset, results_df, method_name):
     plt.tight_layout(rect=[0, 0, 0.9, 0.95])  # zostawiamy miejsce na legendę
     plt.show()
     
+
+def sweep_parameter_by_class_and_peak(
+        dataset,
+        method_name,
+        detect_func,
+        param_name,
+        param_values,
+        peak_ranges,
+        fixed_params=None
+    ):
+
+    results = []
+
+    if fixed_params is None:
+        fixed_params = {}
+
+    # lista wszystkich klas i pików
+    class_peak_pairs = [
+        ("Class1", "P1"), ("Class1", "P2"), ("Class1", "P3"),
+        ("Class2", "P1"), ("Class2", "P2"), ("Class2", "P3"),
+        ("Class3", "P1"), ("Class3", "P2"), ("Class3", "P3"),
+        ("Class4", "P2")
+    ]
+
+    for cls, pk in class_peak_pairs:
+
+        # sprawdź czy ta para istnieje (np. Class4-P1 nie)
+        if cls not in peak_ranges or pk not in peak_ranges[cls]:
+            continue
+
+        print(f"=== Sweep {method_name} | {cls}-{pk} ===")
+
+        for value in param_values:
+
+            params = fixed_params.copy()
+            params[param_name] = value
+
+            detected_all, errors, peak_counts = [], [], []
+
+            # iteracja po sygnałach
+            for item in dataset:
+                if item["class"] != cls:
+                    continue
+
+                t = item["signal"].iloc[:, 0].values
+                x = item["signal"].iloc[:, 1].values
+
+                detected = detect_func(x, **params)
+                detected = np.array(detected, dtype=int)
+
+                # ograniczenie czasowe dla danego piku
+                t_start, t_end = peak_ranges[cls][pk]
+                detected = detected[(t[detected] >= t_start) & (t[detected] <= t_end)]
+
+                detected_all.append(detected)
+                peak_counts.append(len(detected))
+
+                # error
+                ref = item["peaks_ref"].get(pk)
+                if ref is not None:
+                    if isinstance(ref, (list, np.ndarray)):
+                        ref = np.mean(t[np.array(ref, dtype=int)])
+                    else:
+                        ref = t[int(ref)]
+
+                    if len(detected) > 0:
+                        err = np.abs(np.mean(t[detected]) - ref)
+                    else:
+                        err = np.nan
+                    errors.append(err)
+
+            results.append({
+                "Class": cls,
+                "Peak": pk,
+                "Method": method_name,
+                "Param": value,
+                "Mean_Error": np.nanmean(errors),
+                "Mean_PeakCount": np.mean(peak_counts)
+            })
+
+    return pd.DataFrame(results)
+
+def plot_sweep_grid(df, method_name):
+
+    tasks = [
+        ("Class1", "P1"), ("Class1", "P2"), ("Class1", "P3"),
+        ("Class2", "P1"), ("Class2", "P2"), ("Class2", "P3"),
+        ("Class3", "P1"), ("Class3", "P2"), ("Class3", "P3"),
+        ("Class4", "P2")
+    ]
+
+    fig, axes = plt.subplots(4, 3, figsize=(15, 16))
+    axes = axes.flatten()
+
+    # wszystkie ukryć
+    for ax in axes:
+        ax.set_visible(False)
+
+    # pozycje subplotów
+    positions = list(range(9)) + [9 + 1]
+
+    for (cls, pk), ax_i in zip(tasks, positions):
+
+        ax = axes[ax_i]
+        ax.set_visible(True)
+
+        df_sub = df[
+            (df["Class"] == cls) &
+            (df["Peak"] == pk) &
+            (df["Method"] == method_name)
+        ]
+
+        # --- oś główna: Mean_Error ---
+        ax.plot(df_sub["Param"], df_sub["Mean_Error"], lw=2, color="blue", label="Mean Error")
+        ax.set_title(f"{cls} – {pk}")
+        ax.set_xlabel("Parametr")
+        ax.set_ylabel("Błąd średni")
+        ax.grid(True, alpha=0.3)
+
+        # --- oś druga: PeakCount ---
+        ax2 = ax.twinx()
+        ax2.plot(df_sub["Param"], df_sub["Mean_PeakCount"], lw=2, color="red", linestyle="--",
+                 label="Peak Count")
+        ax2.set_ylabel("Peak count")
+        
+        ax.minorticks_on()  
+        ax.grid(True, which="major", color="gray", alpha=0.4, linewidth=0.7)
+        ax.grid(True, which="minor", color="gray", alpha=0.2, linestyle=":", linewidth=0.5)
+
+
+        # --- legenda wspólna dla obu osi ---
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, loc="upper right")
+
+    plt.tight_layout()
+    plt.show()
+
+
+# %%================   SWEEP  ====================
+
+def evaluate_grid_point(params,
+                        dataset,
+                        cls,
+                        peak,
+                        detect_func,
+                        peak_ranges,
+                        peak_amps,
+                        metric):
+
+    # wykryj piki
+    detected = []
+    for item in dataset:
+        if item["class"] != cls:
+            continue
+
+        sig = item["signal"].iloc[:, 1].values
+        t = item["signal"].iloc[:, 0].values
+
+        d = detect_func(sig, **params)
+        d = np.array(d, dtype=int)
+
+        # filtr zakresu czasu i amplitudy
+        t_start, t_end = peak_ranges[cls][peak]
+        a_start, a_end = peak_amps[cls][peak]
+
+        d = d[(t[d] >= t_start) & (t[d] <= t_end)]
+        d = d[(sig[d] >= a_start) & (sig[d] <= a_end)]
+        detected.append(d)
+
+    # policz metryki
+    df = compute_peak_metrics(dataset, detected, peak, cls)
+
+    score = df[metric].mean()
+
+    return score, df
+
+
+# ==========================================================
+# ================   SWEEP 1D   =============================
+# ==========================================================
+
+def sweep_1d(dataset, cls, peak, method_name, detect_func,
+             param_grid, peak_ranges, peak_amps, metric="F1"):
+
+    param_name = list(param_grid.keys())[0]
+    values = param_grid[param_name]
+
+    results = []
+
+    for val in values:
+        params = {param_name: val}
+
+        score, df = evaluate_grid_point(
+            params, dataset, cls, peak,
+            detect_func, peak_ranges, peak_amps, metric
+        )
+
+        results.append({
+            "Class": cls,
+            "Peak": peak,
+            "Method": method_name,
+            param_name: val,
+            metric: score,
+            "Details": df
+        })
+
+    return pd.DataFrame(results)
+
+
+def plot_heatmap_1d(df, method_name, cls, peak):
+    plt.figure(figsize=(8, 4))
+    x = df.columns[3]
+    plt.plot(df[x], df["F1"], lw=2)
+    plt.xlabel(x)
+    plt.ylabel("F1")
+    plt.title(f"{method_name} – {cls} {peak}")
+    plt.grid(True)
+    plt.show()
+
+
+# ==========================================================
+# ================   SWEEP 2D   =============================
+# ==========================================================
+
+def sweep_2d(dataset, cls, peak, method_name, detect_func,
+             param_grid, peak_ranges, peak_amps, metric="F1"):
+
+    p1, p2 = list(param_grid.keys())
+    v1 = param_grid[p1]
+    v2 = param_grid[p2]
+
+    results = []
+
+    for a in v1:
+        for b in v2:
+            params = {p1: a, p2: b}
+
+            score, df = evaluate_grid_point(
+                params, dataset, cls, peak,
+                detect_func, peak_ranges, peak_amps, metric
+            )
+
+            results.append({
+                "Class": cls,
+                "Peak": peak,
+                "Method": method_name,
+                p1: a,
+                p2: b,
+                metric: score,
+                "Details": df
+            })
+
+    return pd.DataFrame(results)
+
+
+def plot_heatmap_2d(df, p1, p2, title=""):
+
+    pivot = df.pivot(index=p1, columns=p2, values="F1")
+
+    plt.figure(figsize=(8, 6))
+    plt.title(title)
+    plt.imshow(pivot, aspect="auto", origin="lower")
+    plt.colorbar(label="F1-score")
+    plt.xlabel(p2)
+    plt.ylabel(p1)
+    plt.show()
+
+
+# ==========================================================
+# ================   SWEEP 3D   =============================
+# ==========================================================
+
+def sweep_3d(dataset, cls, peak, method_name, detect_func,
+             param_grid, peak_ranges, peak_amps, metric="F1"):
+
+    names = list(param_grid.keys())
+    values = list(param_grid.values())
+
+    combinations = itertools.product(*values)
+
+    results = []
+
+    for combo in combinations:
+        params = dict(zip(names, combo))
+
+        score, df = evaluate_grid_point(
+            params, dataset, cls, peak,
+            detect_func, peak_ranges, peak_amps, metric
+        )
+
+        p = {names[i]: combo[i] for i in range(3)}
+        results.append({
+            "Class": cls,
+            "Peak": peak,
+            "Method": method_name,
+            **p,
+            metric: score,
+            "Details": df
+        })
+
+    return pd.DataFrame(results)
+
+
+# def plot_3d_slices(df, p1, p2, p3):
+#     """Rysuje przekroje F1 po jednym parametrze."""
+
+#     for fixed_param in [p1, p2, p3]:
+#         others = [x for x in [p1, p2, p3] if x != fixed_param]
+
+#         piv = df.pivot_table(index=others[0], columns=others[1], values="F1")
+
+#         plt.figure(figsize=(8, 6))
+#         plt.imshow(piv, aspect="auto", origin="lower")
+#         plt.colorbar(label="F1")
+#         plt.xlabel(others[1])
+#         plt.ylabel(others[0])
+#         plt.title(f"Slice fixing {fixed_param}")
+#         plt.show()
+
+def plot_3d_slices(df, param_grid, metric="F1"):
+    """
+    df – wynik sweep_3d
+    param_grid – słownik param → lista wartości
+    """
+
+    p1, p2, p3 = list(param_grid.keys())
+    param_values = param_grid  # alias
+
+    for fixed in [p1, p2, p3]:
+        # pozostałe dwa
+        v1, v2 = [p for p in [p1, p2, p3] if p != fixed]
+
+        # pivot tabela: rzędy=v1, kolumny=v2
+        piv = df.pivot_table(index=v1, columns=v2, values=metric)
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        im = ax.imshow(piv.values,
+                       aspect="auto",
+                       origin="lower",
+                       cmap="viridis")
+
+        plt.colorbar(im, ax=ax, label=metric)
+
+        # --- poprawne etykiety osi ---
+        ax.set_xticks(range(len(param_values[v2])))
+        ax.set_xticklabels([f"{v:.3g}" for v in param_values[v2]])
+
+        ax.set_yticks(range(len(param_values[v1])))
+        ax.set_yticklabels([f"{v:.3g}" for v in param_values[v1]])
+
+        ax.set_xlabel(v2)
+        ax.set_ylabel(v1)
+        ax.set_title(f"{metric} slice (fixed {fixed})")
+
+        plt.tight_layout()
+        plt.show()
+
+
+# ==========================================================
+# ================   TOOLS  ================================
+# ==========================================================
+# def print_best(df, top_n=2):
+#     """
+#     Zwraca top N kombinacji parametrów osobno dla każdej pary (Class, Peak),
+#     sortując malejąco po F1 wewnątrz każdej grupy.
+#     """
+#     best_list = []
+
+#     grouped = df.groupby(["Class", "Peak"], group_keys=False)  # <-- ważne: group_keys=False
+#     for (cls, pk), group in grouped:
+#         # sortowanie malejąco po F1 w danej grupie
+#         group_sorted = group.sort_values("F1", ascending=False, na_position='last')
+#         best_list.append(group_sorted.head(top_n))
+
+#     # łączymy wszystko w jeden df
+#     return pd.concat(best_list).reset_index(drop=True)
+
+def print_best(df, top_n=2):
+    """
+    Zwraca top N kombinacji parametrów osobno dla każdej pary (Class, Peak),
+    sortując malejąco po F1 ale tylko jeśli Mean_PeakCount >= 1.
+    """
+
+    df = df.copy()
+
+    # --- wyciągamy Mean_PeakCount z Details ---
+    mean_counts = []
+    for i, row in df.iterrows():
+        details = row["Details"]
+        if isinstance(details, pd.DataFrame) and "Peak_Count" in details:
+            mean_counts.append(details["Peak_Count"].mean())
+        else:
+            mean_counts.append(np.nan)
+
+    df["Mean_PeakCount"] = mean_counts
+
+    best_list = []
+    grouped = df.groupby(["Class", "Peak"], group_keys=False)
+
+    for (cls, pk), group in grouped:
+
+        # ⚠️ FILTR: chcemy tylko kombinacje, które wykrywają przynajmniej 1 pik średnio
+        filtered = group[group["Mean_PeakCount"] >= 1]
+
+        if len(filtered) == 0:
+            # jeśli nic nie spełnia warunku — zwracamy NA zamiast crasha
+            empty_row = group.iloc[[0]].copy()
+            empty_row["F1"] = np.nan
+            empty_row["Mean_PeakCount"] = 0
+            best_list.append(empty_row)
+            continue
+
+        # sortujemy po F1 malejąco
+        sorted_group = filtered.sort_values("F1", ascending=False, na_position="last")
+
+        best_list.append(sorted_group.head(top_n))
+
+    return pd.concat(best_list).reset_index(drop=True)
+
+
+
 # %% ------------- EXECUTION --------------
 base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
 data = load_data(base_path)
@@ -563,10 +1065,18 @@ pd.options.display.float_format = '{:.4f}'.format
 
 
 METHODS = {
-    "concave": concave,
-    "modified_scholkmann": modified_scholkmann,
-    "curvature": curvature,
-    "line_distance": line_distance
+    "concave": lambda sig: concave(sig, 0, 0, None),
+    #"concave_d2x=-0,002": lambda sig:  concave(sig, -0.002, 0, None),
+    
+    "modified_scholkmann_1_99": lambda sig: modified_scholkmann(sig, 1, 99),
+    #"modified_scholkmann_1_95": lambda sig: modified_scholkmann(sig, 1, 95),
+    #"modified_scholkmann_1/2_95": lambda sig: modified_scholkmann(sig, 2, 95),
+    #"modified_scholkmann_1/2_99": lambda sig: modified_scholkmann(sig, 2, 99),
+    
+    "curvature": lambda sig: curvature(sig, 0, 0, None),
+    "line_distance_10": lambda sig: line_distance(sig, 0,"vertical", 10),
+    "hilbert": lambda sig: hilbert_envelope(sig, 0),
+    "wavelet": lambda sig: wavelet(sig, 0)
 }
 
 PEAK_RANGES = {
@@ -576,30 +1086,37 @@ PEAK_RANGES = {
     "Class4": {"P2": (32, 73)},
 }
 
+PEAK_AMPS = {
+    "Class1": {"P1": (0.86, 1), "P2": (0.32, 0.94), "P3": (0.13, 0.95)},
+    "Class2": {"P1": (0.78, 1), "P2": (0.71, 1), "P3": (0.24, 1)},
+    "Class3": {"P1": (0.19, 0.94), "P2": (0.73, 1), "P3": (0.62, 1)},
+    "Class4": {"P2": (0.91, 1)},
+}
+
 all_metrics = []
 
 # test_df = single_peak_detection("P1", "Class3", data, "modified_scholkmann", PEAK_RANGES)
-for method in METHODS.keys():
-    # klasy 1-3
-    for cls in ["Class1", "Class2", "Class3"]:
-        for pk in ["P1", "P2", "P3"]:
-            detected = single_peak_detection(pk, cls, data, method, PEAK_RANGES)
-            df = compute_peak_metrics(data, detected, pk, cls)
-            df["Method"] = method
-            if not df.empty:
-                all_metrics.append(df)
+# for method in METHODS.keys():
+#     # klasy 1-3
+#     for cls in ["Class1", "Class2", "Class3"]:
+#         for pk in ["P1", "P2", "P3"]:
+#             detected = single_peak_detection(pk, cls, data, method, PEAK_RANGES, PEAK_AMPS)
+#             df = compute_peak_metrics(data, detected, pk, cls)
+#             df["Method"] = method
+#             if not df.empty:
+#                 all_metrics.append(df)
 
-    # klasa 4 - tylko P2
-    cls = "Class4"
-    pk = "P2"
-    detected = single_peak_detection(pk, cls, data, method, PEAK_RANGES)
-    df = compute_peak_metrics(data, detected, pk, cls)
-    df["Method"] = method
-    if not df.empty:
-        all_metrics.append(df)
+#     # klasa 4 - tylko P2
+#     cls = "Class4"
+#     pk = "P2"
+#     detected = single_peak_detection(pk, cls, data, method, PEAK_RANGES, PEAK_AMPS)
+#     df = compute_peak_metrics(data, detected, pk, cls)
+#     df["Method"] = method
+#     if not df.empty:
+#         all_metrics.append(df)
 
-# # jeden duży DataFrame
-metrics_df = pd.concat(all_metrics, ignore_index=True)
+# # # jeden duży DataFrame
+# metrics_df = pd.concat(all_metrics, ignore_index=True)
 
 # avg_stats = (
 #     metrics_df
@@ -609,11 +1126,117 @@ metrics_df = pd.concat(all_metrics, ignore_index=True)
 #         "Mean_Y_Error": "mean",
 #         "Mean_XY_Error": "mean",
 #         "Peak_Count": "mean",
+#         "Precision": "mean",
+#         "Accuracy": "mean",
+#         "F1": "mean"
 #     })
 #     .reset_index()
 # )
 # print(avg_stats)
 
-for m in METHODS.keys():
-    plot_class_peaks_grid(data, metrics_df, m)
+# for m in METHODS.keys():
+#     plot_class_peaks_grid(data, metrics_df, m)
 
+# results_sweep = sweep_parameter_by_class_and_peak(
+#     data,
+#     method_name="line_distance",
+#     detect_func=line_distance,
+#     param_name="min_len",
+#     param_values=range(1, 50, 5),
+#     peak_ranges=PEAK_RANGES,
+#     fixed_params={"d2x_threshold": -0.001}
+# )
+# plot_sweep_grid(results_sweep, "line_distance")
+
+# %% ----- sweep concave ------
+# all_sweeps = []
+
+# for method_name, detect_func in [("concave", concave)]:  # lub inne metody
+#     for cls, pks in PEAK_RANGES.items():
+#         for pk in pks.keys():
+#             df = sweep_2d(
+#                 dataset=data,
+#                 cls=cls,
+#                 peak=pk,
+#                 method_name=method_name,
+#                 detect_func=detect_func,
+#                 param_grid={
+#                     "d2x_threshold": np.linspace(-0.02, 0.01, 20),
+#                     "prominence": np.linspace(0, 5, 10),
+#                     #"threshold": np.linspace(0, 0, 1)
+#                 },
+#                 peak_ranges=PEAK_RANGES,
+#                 peak_amps=PEAK_AMPS,
+#                 metric="F1"
+#             )
+#             all_sweeps.append(df)
+
+# # połącz wszystkie wyniki
+# all_sweeps_df = pd.concat(all_sweeps, ignore_index=True)
+
+# # teraz top n dla każdej klasy i piku
+# best_all = print_best(all_sweeps_df, top_n=2)
+
+# print(best_all)
+
+
+# %% ----- sweep curvature ------
+all_sweeps = []
+
+for method_name, detect_func in [("curvature", curvature)]:  # lub inne metody
+    for cls, pks in PEAK_RANGES.items():
+        for pk in pks.keys():
+            df = sweep_1d(
+                dataset=data,
+                cls=cls,
+                peak=pk,
+                method_name=method_name,
+                detect_func=detect_func,
+                param_grid={
+                    "d2x_threshold": np.linspace(-0.005, 0, 5),
+                    #"prominence": np.linspace(0, 0, 1),
+                    #"threshold": np.linspace(0, 10, 3)
+                },
+                peak_ranges=PEAK_RANGES,
+                peak_amps=PEAK_AMPS,
+                metric="F1"
+            )
+            all_sweeps.append(df)
+
+# połącz wszystkie wyniki
+all_sweeps_df = pd.concat(all_sweeps, ignore_index=True)
+
+# teraz top n dla każdej klasy i piku
+best_all = print_best(all_sweeps_df, top_n=2)
+
+print(best_all)
+# %% ----- sweep line ------
+# all_sweeps = []
+
+# for method_name, detect_func in [("curvature", curvature)]:  # lub inne metody
+#     for cls, pks in PEAK_RANGES.items():
+#         for pk in pks.keys():
+#             df = sweep_3d(
+#                 dataset=data,
+#                 cls=cls,
+#                 peak=pk,
+#                 method_name=method_name,
+#                 detect_func=detect_func,
+#                 param_grid={
+#                     "d2x_threshold": np.linspace(-0.02, 0.01, 5),
+#                     "min_len": np.linspace(0, 5, 3),
+#                     "threshold": np.linspace(0, 10, 3)
+#                 },
+#                 peak_ranges=PEAK_RANGES,
+#                 peak_amps=PEAK_AMPS,
+#                 metric="F1"
+#             )
+#             all_sweeps.append(df)
+
+# # połącz wszystkie wyniki
+# all_sweeps_df = pd.concat(all_sweeps, ignore_index=True)
+
+# # teraz top n dla każdej klasy i piku
+# best_all = print_best(all_sweeps_df, top_n=2)
+
+# print(best_all)
