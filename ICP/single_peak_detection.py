@@ -269,37 +269,6 @@ def wavelet(signal, prominence=0, w_range=(1,10), step=1):
     
     return np.array(peaks)
 
-def detect_ma_crossings(signal, window_fast=5, window_slow=20,
-                        min_distance=30, lookback=20):
-    """
-    Wykrywanie fast/slow MA crossing.
-    Zwraca listę zakresów (start_idx, end_idx) = (crossing - lookback, crossing).
-
-    x: sygnał
-    window_fast: okno szybkiej średniej
-    window_slow: okno wolnej średniej
-    min_distance: minimalny odstęp w próbkach między crossingami
-    lookback: zakres "wstecz" od crossing do analizy piku
-    """
-
-    # --- średnie ruchome ---
-    xf = pd.Series(signal).rolling(window_fast, min_periods=1).mean().to_numpy()
-    xs = pd.Series(signal).rolling(window_slow, min_periods=1).mean().to_numpy()
-
-    crossings = []
-    last_cross = -min_distance
-
-    for i in range(1, len(signal)):
-        # przecięcie: fast przebija slow
-        crossed = ((xf[i] >= xs[i] and xf[i-1] < xs[i-1]) or
-                   (xf[i] <= xs[i] and xf[i-1] > xs[i-1]))
-
-        if crossed and (i - last_cross >= min_distance):
-            start = max(0, i - lookback)
-            crossings.append((start, i))
-            last_cross = i
-
-    return crossings
 
     
 # %%-------- WYKRESY I WIZUALIZACJE ---------------
