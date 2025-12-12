@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import glob
 import os
 from scipy.signal import find_peaks
+from peak_detection_new import wavelet, hilbert_envelope
 
 
 # zapis do wynikow do csv, wyliczenie "cech" poszczegolnych klas: AmpICP, latencji i amplitud p1, p2, p3, pola pod krzywa; okreslenie ile pikow wykrywa dana metoda
@@ -719,12 +720,21 @@ def plot_all_signals_with_peaks(data, results_df, method_name):
         - gęstość pików ręcznych (green)
         - gęstość pików automatycznych (red)
     """
+    titles_dict = {
+        "concave": "Maksima w odcinkach wklęsłych",
+        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna",
+        "curvature": "Maksymalna krzywizna",
+        "line_vertical": "Max, odległosć od linii łączącej końce odc. wklęsłego",
+        "hilbert": "Transformata Hilberta",
+        "wavelet": "Ciągła transformata falkowa"
+    }
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
 
     for i in range(1, 5):
         ax = axes[i-1]
         class_name = f"Class{i}"
+        class_label = f"Klasa {i}"
 
         signals = data[f"{class_name}_signals"]
         peaks_df = data[f"{class_name}_peaks"]
@@ -785,23 +795,24 @@ def plot_all_signals_with_peaks(data, results_df, method_name):
         # narysuj gęstość punktów
         if len(manual_points_t) > 0:
             ax_hist.hist(manual_points_t, bins=50, color="green",
-                    alpha=0.3, label="Ręczne piki")
+                    alpha=0.3, label="Piki referencyjne")
 
         if len(auto_points_t) > 0:
             ax_hist.hist(auto_points_t, bins=50, color="red",
-                    alpha=0.3, label="Automatyczne piki")
-
-        ax.set_title(class_name)
-        ax.set_xlabel("Czas [s]")
+                    alpha=0.3, label="Piki wykryte")
+        
+        fixed_ylim = {1: 300, 2: 300, 3: 300, 4: 100}
+        ax_hist.set_ylim(0, fixed_ylim[i])  # i = 1..4
+        ax.set_title(class_label, fontsize=16)
+        ax.set_xlabel("Numer próbki")
         ax.set_ylabel("Amplituda")
         ax.grid(True, alpha=0.3)
-        
         handles1, labels1 = ax.get_legend_handles_labels()
         handles2, labels2 = ax_hist.get_legend_handles_labels()
         ax.legend(handles1 + handles2, labels1 + labels2, loc="upper right")
         #ax.legend()
    
-    fig.suptitle(f'{method_name}')
+    fig.suptitle(titles_dict.get(method_name, method_name), fontsize=20)
     plt.tight_layout()
     plt.show()
 
@@ -835,16 +846,18 @@ methods = {
     "modified_scholkmann1": lambda t, x: modified_scholkmann(x, 1)[0],
     "curvature": lambda t, x: detect_peaks_curvature(t, x, d2x_threshold=0, threshold=0),
     #"line_perpendicular": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="perpendicular", min_len=3),
-    "line_vertical": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="vertical", min_len=3),
+    "line_vertical": lambda t, x: detect_peaks_line_distance(t, x, d2x_threshold=0, mode="vertical", min_len=10),
+    "hilbert": lambda t, sig: hilbert_envelope(sig, 0),
+    "wavelet": lambda t, sig: wavelet(sig, 0)
 }
 
-# results = run_peak_detection(base_path, detection_methods=methods)
+results = run_peak_detection(base_path, detection_methods=methods)
 
 
 # analyze_results_grouped(results) # wykresy
 
-# for method in methods:
-#     plot_all_signals_with_peaks(data, results, method)
+for method in methods:
+    plot_all_signals_with_peaks(data, results, method)
 
 
 

@@ -12,6 +12,7 @@ import os
 from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 import itertools
 import time
+from moving_average import compute_crossings_summary, smooth_dataset
 # from wersja2 import sweep_parameter_for_method
 # from main import load_data # moze uda sie lepiej to rozwiazac
 # from wersja2 import save_with_increment
@@ -58,7 +59,7 @@ def load_data(base_path):
 
 
 # %% ------- DETEKCJA ----------
-def single_peak_detection(peak_name, class_name, dataset, method_name, peak_ranges, peak_amps):
+def single_peak_detection_old(peak_name, class_name, dataset, method_name, peak_ranges, peak_amps):
     """
     Wykrywa piki w określonym przedziale czasowym.
 
@@ -108,6 +109,50 @@ def single_peak_detection(peak_name, class_name, dataset, method_name, peak_rang
         detected_all.append(peaks_in_range)
 
     return detected_all
+
+def single_peak_detection(peak_name, class_name, file_name,
+                          dataset, method_name,
+                          peak_ranges, peak_amps):
+    """
+    Wersja per-signal (1 sygnał = 1 wynik).
+
+    peak_ranges[class][file][peak] = (t_start, t_end)
+    peak_amps[class][file][peak]   = (a_start, a_end)
+    """
+
+    if method_name not in METHODS:
+        raise ValueError(f"Nieznana metoda: {method_name}")
+
+    # wybór metody
+    detect = METHODS[method_name]
+
+    # ----- nowość: zakresy dla KONKRETNEGO pliku -----
+    try:
+        t_start, t_end = peak_ranges[class_name][file_name][peak_name]
+        a_start, a_end = peak_amps[class_name][file_name][peak_name]
+    except KeyError:
+        # brak zakresu = nic nie wykryto
+        return np.array([], dtype=int)
+
+    # pobierz sygnał
+    item = next(d for d in dataset if d["file"] == file_name and d["class"] == class_name)
+    sig = item["signal"]
+    t = sig.iloc[:, 0].values
+    y = sig.iloc[:, 1].values
+
+    # detekcja surowa
+    peaks = detect(y)
+    peaks = np.array(peaks, dtype=int)
+
+    # filtr wg czasu
+    in_time = (t[peaks] >= t_start) & (t[peaks] <= t_end)
+    peaks = peaks[in_time]
+
+    # filtr wg amplitudy
+    in_amp = (y[peaks] >= a_start) & (y[peaks] <= a_end)
+    peaks = peaks[in_amp]
+
+    return peaks
 
 
 # %%----------- METODY -------------
@@ -271,6 +316,89 @@ def wavelet(signal, prominence=0, w_range=(1,10), step=1):
 
 
     
+# %% ----------- PRZELICZENIA I PRZETWORZENIA -------
+def make_peak_ranges_from_crossings(dataset, crossings):
+    """
+    crossings: wynik compute_crossings_summary
+    Zwraca: AUTO_PEAK_RANGES, AUTO_PEAK_AMPS
+    """
+    auto_ranges = {}
+    auto_amps = {}
+
+    for cls in crossings.keys():
+        auto_ranges[cls] = {}
+        auto_amps[cls] = {}
+
+        for item in crossings[cls]:
+            fname = item["File"]
+            cross_list = item["Crossings"]  # lista (start, peak)
+
+            # minimalny wariant: 3 piki = 3 crossingi
+            if len(cross_list) < 6:
+                continue
+
+            # czas lokalizacji pików
+            P1_start, P1_end = cross_list[0], cross_list[1]
+            P2_start, P2_end = cross_list[2], cross_list[3]
+            P3_start, P3_end = cross_list[4], cross_list[5]
+
+            sig = next(d["signal"] for d in dataset if d["file"] == fname)
+            t = sig.iloc[:,0].values
+            y = sig.iloc[:,1].values
+
+            # # zakresy czasowe = od start do end (bez żadnych +/- 5)
+            # auto_ranges[cls]["P1"] = (t[P1_start], t[P1_end])
+            # auto_ranges[cls]["P2"] = (t[P2_start], t[P2_end])
+            # auto_ranges[cls]["P3"] = (t[P3_start], t[P3_end])
+
+            # # zakresy amplitudy = min/max w tym zakresie
+            # auto_amps[cls]["P1"] = (y[P1_start], y[P1_end])
+            # auto_amps[cls]["P2"] = (y[P2_start], y[P2_end])
+            # auto_amps[cls]["P3"] = (y[P3_start], y[P3_end])
+            
+            # inicjalizacja struktury dla pliku
+            auto_ranges[cls][fname] = {}
+            auto_amps[cls][fname] = {}
+
+            # zakresy czasowe
+            auto_ranges[cls][fname]["P1"] = (t[P1_start], t[P1_end])
+            auto_ranges[cls][fname]["P2"] = (t[P2_start], t[P2_end])
+            auto_ranges[cls][fname]["P3"] = (t[P3_start], t[P3_end])
+
+            # zakresy amplitudy
+            auto_amps[cls][fname]["P1"] = (y[P1_start], y[P1_end])
+            auto_amps[cls][fname]["P2"] = (y[P2_start], y[P2_end])
+            auto_amps[cls][fname]["P3"] = (y[P3_start], y[P3_end])
+
+    return auto_ranges, auto_amps
+
+
+def run_all_methods(dataset, METHODS, ranges, amps, label=""):
+    all_metrics = []
+
+    for method, detect_func in METHODS.items():
+        for cls in ranges.keys():
+            for pk in ranges[cls].keys():
+
+                class_items = [item for item in dataset if item["class"] == cls]
+
+                for item in class_items:
+                    file = item["file"]
+
+                    detected = single_peak_detection(
+                    pk, cls, file,
+                    dataset, method,
+                    ranges, amps
+                )
+
+                df = compute_peak_metrics(dataset, [detected], pk, cls)
+                df["Method"] = method
+                df["Mode"] = label
+                all_metrics.append(df)
+
+    return pd.concat(all_metrics, ignore_index=True)
+
+
 # %%-------- WYKRESY I WIZUALIZACJE ---------------
 def plot_all_signals_with_peaks(data, results_df, method_name):
     """
@@ -409,13 +537,13 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
                 "Peak_Count": 0,
                 "Detected_Peaks": [],
                 "Reference_Peaks": ref_idx,
-                "TP": 0,
-                "FP": len(peaks),
-                "FN": 0,
-                "Precision": np.nan,
-                "Recall": np.nan,
-                "F1": np.nan,
-                "Accuracy": np.nan
+                # "TP": 0,
+                # "FP": len(peaks),
+                # "FN": 0,
+                # "Precision": np.nan,
+                # "Recall": np.nan,
+                # "F1": np.nan,
+                # "Accuracy": np.nan
             })
             continue
 
@@ -433,13 +561,13 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
                 "Peak_Count": 0,
                 "Detected_Peaks": [],
                 "Reference_Peaks": ref_idx,
-                "TP": 0,
-                "FP": len(peaks),
-                "FN": 0,
-                "Precision": np.nan,
-                "Recall": np.nan,
-                "F1": np.nan,
-                "Accuracy": np.nan
+                # "TP": 0,
+                # "FP": len(peaks),
+                # "FN": 0,
+                # "Precision": np.nan,
+                # "Recall": np.nan,
+                # "F1": np.nan,
+                # "Accuracy": np.nan
             })
             continue
 
@@ -451,21 +579,21 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
         dxy = np.sqrt(dx**2 + dy**2)
         
             
-        ref_list = [ref_idx] if not isinstance(ref_idx, (list, np.ndarray)) else list(ref_idx)
-        detected = list(peaks)
+        # ref_list = [ref_idx] if not isinstance(ref_idx, (list, np.ndarray)) else list(ref_idx)
+        # detected = list(peaks)
 
-        TP = 0
-        for r in ref_list:
-            if any(abs(d - r) <= tolerance for d in detected):
-                TP += 1
+        # TP = 0
+        # for r in ref_list:
+        #     if any(abs(d - r) <= tolerance for d in detected):
+        #         TP += 1
 
-        FP = len(detected) - TP
-        FN = len(ref_list) - TP
+        # FP = len(detected) - TP
+        # FN = len(ref_list) - TP
 
-        Precision = TP / (TP + FP) if (TP + FP) > 0 else np.nan
-        Recall = TP / (TP + FN) if (TP + FN) > 0 else np.nan
-        F1 = 2 * Precision * Recall / (Precision + Recall) if (Precision + Recall) > 0 else np.nan
-        Accuracy = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else np.nan
+        # Precision = TP / (TP + FP) if (TP + FP) > 0 else np.nan
+        # Recall = TP / (TP + FN) if (TP + FN) > 0 else np.nan
+        # F1 = 2 * Precision * Recall / (Precision + Recall) if (Precision + Recall) > 0 else np.nan
+        # Accuracy = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else np.nan
         
         metrics_list.append({
             "Class": class_name,
@@ -477,13 +605,13 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
             "Peak_Count": len(peaks),
             "Reference_Peaks": ref_idx, 
             "Detected_Peaks": list(peaks),
-            "TP": TP,
-            "FP": FP,
-            "FN": FN,
-            "Precision": Precision,
-            "Recall": Recall,
-            "F1": F1,
-            "Accuracy": Accuracy
+            # "TP": TP,
+            # "FP": FP,
+            # "FN": FN,
+            # "Precision": Precision,
+            # "Recall": Recall,
+            # "F1": F1,
+            # "Accuracy": Accuracy
         })
         
     df_metrics = pd.DataFrame(metrics_list)
@@ -1029,10 +1157,11 @@ def print_best(df, top_n=2):
 # %% ------------- EXECUTION --------------
 base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
 data = load_data(base_path)
+data_smooth = smooth_dataset(data)
 
 pd.options.display.float_format = '{:.4f}'.format
 
-
+# %% ------ PARAMETRY ---------------
 METHODS = {
     "concave": lambda sig: concave(sig, 0, 0, None),
     #"concave_d2x=-0,002": lambda sig:  concave(sig, -0.002, 0, None),
@@ -1150,35 +1279,35 @@ all_metrics = []
 
 
 # %% ----- sweep curvature ------
-all_sweeps = []
+# all_sweeps = []
 
-for method_name, detect_func in [("curvature", curvature)]:  # lub inne metody
-    for cls, pks in PEAK_RANGES.items():
-        for pk in pks.keys():
-            df = sweep_1d(
-                dataset=data,
-                cls=cls,
-                peak=pk,
-                method_name=method_name,
-                detect_func=detect_func,
-                param_grid={
-                    "d2x_threshold": np.linspace(-0.005, 0, 5),
-                    #"prominence": np.linspace(0, 0, 1),
-                    #"threshold": np.linspace(0, 10, 3)
-                },
-                peak_ranges=PEAK_RANGES,
-                peak_amps=PEAK_AMPS,
-                metric="F1"
-            )
-            all_sweeps.append(df)
+# for method_name, detect_func in [("curvature", curvature)]:  # lub inne metody
+#     for cls, pks in PEAK_RANGES.items():
+#         for pk in pks.keys():
+#             df = sweep_1d(
+#                 dataset=data,
+#                 cls=cls,
+#                 peak=pk,
+#                 method_name=method_name,
+#                 detect_func=detect_func,
+#                 param_grid={
+#                     "d2x_threshold": np.linspace(-0.005, 0, 5),
+#                     #"prominence": np.linspace(0, 0, 1),
+#                     #"threshold": np.linspace(0, 10, 3)
+#                 },
+#                 peak_ranges=PEAK_RANGES,
+#                 peak_amps=PEAK_AMPS,
+#                 metric="F1"
+#             )
+#             all_sweeps.append(df)
 
-# połącz wszystkie wyniki
-all_sweeps_df = pd.concat(all_sweeps, ignore_index=True)
+# # połącz wszystkie wyniki
+# all_sweeps_df = pd.concat(all_sweeps, ignore_index=True)
 
-# teraz top n dla każdej klasy i piku
-best_all = print_best(all_sweeps_df, top_n=2)
+# # teraz top n dla każdej klasy i piku
+# best_all = print_best(all_sweeps_df, top_n=2)
 
-print(best_all)
+# print(best_all)
 # %% ----- sweep line ------
 # all_sweeps = []
 
@@ -1209,3 +1338,71 @@ print(best_all)
 # best_all = print_best(all_sweeps_df, top_n=2)
 
 # print(best_all)
+# %% -------- TRZY TRYBY ---------
+
+# results_A = run_all_methods(
+#     data,
+#     METHODS,
+#     PEAK_RANGES,
+#     PEAK_AMPS,
+#     label="raw"
+# )
+
+# print("Ba")
+
+# results_B = run_all_methods(
+#     data_smooth,
+#     METHODS,
+#     PEAK_RANGES,
+#     PEAK_AMPS,
+#     label="smoothed"
+# )
+
+# print("Baj")
+
+# cross_sum, cross_summary_df = compute_crossings_summary(data_smooth)
+# AUTO_R, AUTO_A = make_peak_ranges_from_crossings(data_smooth, cross_sum)
+
+# print(AUTO_R, AUTO_A)
+# print("Bajo")
+
+# results_C = run_all_methods(
+#     data_smooth,
+#     METHODS,
+#     AUTO_R,
+#     AUTO_A,
+#     label="smooth_cross"
+# )
+
+# print("Bajo j")
+# results = pd.concat([results_A, results_B, results_C])
+
+# avg_stats = (
+#     results
+#     .groupby(["Class", "Peak", "Method", "Mode"])   # tu agregujesz po klasie, pik i metodzie
+#     .agg({
+#         "Mean_XY_Error": "mean",
+#         "Peak_Count": "mean",
+#     })
+#     .reset_index()
+# )
+
+
+# print("Bajo jajo")
+
+# # RAW
+# print("Wykresy: RAW")
+# for m in METHODS.keys():
+#     plot_class_peaks_grid(data, results_A, m)
+
+# # SMOOTHED
+# print("Wykresy: SMOOTHED")
+# for m in METHODS.keys():
+#     plot_class_peaks_grid(data_smooth, results_B, m)
+
+# # SMOOTH + AUTO RANGES
+# print("Wykresy: SMOOTH + CROSSINGS")
+# for m in METHODS.keys():
+#     plot_class_peaks_grid(data_smooth, results_C, m)
+
+

@@ -225,7 +225,7 @@ def generate_boxplots_percentiles(df, output_folder):
     os.makedirs(output_folder, exist_ok=True)
     all_percentiles = []
 
-    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
 
     for i, cls in enumerate(sorted(df["Class"].unique())):
@@ -262,12 +262,13 @@ def generate_boxplots_percentiles(df, output_folder):
 
         if box_data:
             axes[i].boxplot(box_data, labels=labels, whis=1.5)
-            axes[i].set_title(cls)
-            axes[i].set_ylabel("Time [ms]")
+            axes[i].set_title(f"Klasa {i+1}", fontsize=16)
+            axes[i].set_ylabel("Czas występowania", fontsize=14)
+            axes[i].tick_params(axis='x', labelsize=14)
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_folder, "boxplots_all_classes.png"))
-    plt.close()
+    plt.tight_layout(w_pad=4, h_pad=4)
+    # plt.savefig(os.path.join(output_folder, "boxplots_all_classes.png"))
+    # plt.close()
 
     # CSV z percentylami
     percentiles_df = pd.DataFrame(all_percentiles)
@@ -320,12 +321,13 @@ def generate_boxplots_amplitudes(df, output_folder):
 
         if box_data:
             axes[i].boxplot(box_data, labels=labels, whis=1.5)
-            axes[i].set_title(f"{cls} — Amplitudes")
-            axes[i].set_ylabel("Amplitude")
+            axes[i].set_title(f"Klasa {i+1}", fontsize=16)
+            axes[i].set_ylabel("Amplituda", fontsize=14)
+            axes[i].tick_params(axis='x', labelsize=14)
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_folder, "boxplots_amplitudes_all_classes.png"))
-    plt.close()
+    plt.tight_layout(w_pad=4, h_pad=4)
+    # plt.savefig(os.path.join(output_folder, "boxplots_amplitudes_all_classes.png"))
+    # plt.close()
 
     # CSV z percentylami amplitud
     percentiles_df = pd.DataFrame(all_percentiles)
@@ -339,7 +341,7 @@ def generate_violinplots(df, output_folder):
     """
     os.makedirs(output_folder, exist_ok=True)
 
-    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
 
     for i, cls in enumerate(sorted(df["Class"].unique())):
@@ -362,9 +364,9 @@ def generate_violinplots(df, output_folder):
             axes[i].set_title(cls)
             axes[i].set_ylabel("Time [ms]")
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_folder, "violinplots_all_classes.png"))
-    plt.close()
+    plt.tight_layout(w_pad=4, h_pad=4)
+    # plt.savefig(os.path.join(output_folder, "violinplots_all_classes.png"))
+    # plt.close()
                   
 data = load_data(r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1")
 
@@ -379,7 +381,7 @@ df_raw = compute_statistics_raw(data)
 
 #print_normality_summary(test_results_df)
 output_folder = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\plots"
-# generate_boxplots_percentiles(df_raw, output_folder)
+generate_boxplots_percentiles(df_raw, output_folder)
 # generate_violinplots(df_raw, output_folder)
 
 generate_boxplots_amplitudes(df_raw, output_folder)
