@@ -96,7 +96,7 @@ def load_data_it2(base_path):
     return dataset
 
 # %% ------- PRZYGOTOWANIE --------
-def smooth_butter(x, cutoff=5, fs=125, order=3):
+def smooth_butter(x, cutoff=1, fs=100, order=3):
     b, a = butter(order, cutoff / (fs / 2), btype='low')
     return filtfilt(b, a, x)
 
@@ -122,9 +122,20 @@ def smooth_dataset(dataset, inplace=False, classes=None, **kwargs):
     dataset_out : list
         wygładzony dataset (jeśli inplace=False). Jeśli inplace=True zwraca None.
     """
+    if inplace:
+        ds = dataset
+    else:
+        # Tworzymy nową listę słowników z kopiami DataFrame
+        ds = []
+        for item in dataset:
+            ds.append({
+                "class": item["class"],
+                "file": item["file"],
+                "signal": item["signal"].copy(),  # kopia DataFrame
+                "peaks_ref": item["peaks_ref"].copy() if item.get("peaks_ref") else None
+            })
 
     
-    ds = dataset
 
     target_classes = set(classes) if classes is not None else None
 
@@ -137,17 +148,17 @@ def smooth_dataset(dataset, inplace=False, classes=None, **kwargs):
         x = sig_df.iloc[:, 1].values
 
 
-        cutoff = kwargs.get("cutoff", 5.0)
-        fs = kwargs.get("fs", 125.0)
+        cutoff = kwargs.get("cutoff", 4.0)
+        fs = kwargs.get("fs", 100.0)
         order = kwargs.get("order", 3)
         # filtfilt zachowuje fazę (zero-phase)
         x_s = smooth_butter(x, cutoff=cutoff, fs=fs, order=order)
 
 
         # podstawiamy wygładzony sygnał z powrotem do DataFrame (zachowujemy kolumnę czasu)
-        sig_df_s = sig_df.copy()
-        sig_df_s.iloc[:, 1] = x_s
-        item["signal"] = sig_df_s
+        # sig_df_s = sig_df.copy()
+        sig_df.iloc[:, 1] = x_s
+        # item["signal"] = sig_df_s
 
     if inplace:
         return None

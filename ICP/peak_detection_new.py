@@ -7,9 +7,10 @@ from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 import itertools
 import time
 from moving_average import compute_crossings_summary, smooth_dataset
+from functools import reduce
 
 # %% ------- DANE -------------
-def load_data(base_path):
+def load_data_it1(base_path):
     dataset = []
 
     for i in range(1, 5):
@@ -87,6 +88,92 @@ def load_data_it2(base_path):
 
     return dataset
 
+def wyniki(
+    dataset, dataset_name,      # "it1" lub "it2"
+    range_type=None,
+    peak_ranges_file=None,
+    peak_amps_file=None,
+    range_name=None,
+    methods=None       # lista metod do liczenia
+):
+    """
+    Liczy lub wczytuje metryki dla danej konfiguracji danych i smoothingu.
+    Każda metoda zapisuje swoje wyniki osobno w folderze dedykowanym dla konfiguracji.
+    """
+    if methods is None:
+        methods = METHODS.keys()
+
+    # unikalny folder dla konfiguracji
+    # range_str = range_type if range_type else "no_range"
+    folder_wyniki = os.path.join("wyniki", f"{dataset_name}_{range_name}")
+    os.makedirs(folder_wyniki, exist_ok=True)
+
+    results = {}
+
+    for method_name in methods:
+        all_metrics_file = os.path.join(folder_wyniki, f"{method_name}_all_metrics.csv")
+        avg_metrics_file = os.path.join(folder_wyniki, f"{method_name}_avg_metrics.csv")
+
+        # jeśli pliki istnieją, wczytaj je
+        if os.path.exists(all_metrics_file) and os.path.exists(avg_metrics_file):
+            df_all_metrics = pd.read_csv(all_metrics_file)
+            df_avg_metrics = pd.read_csv(avg_metrics_file)
+            print(f"Wczytano zapisane wyniki: {method_name}")
+        else:
+            # liczenie metryk
+            all_metrics = []
+            for cls in ["Class1", "Class2", "Class3", "Class4"]:
+                for peak_name in ["P1","P2","P3"]:
+                    detected_all = []
+                    for item in dataset:
+                        if item["class"] != cls:
+                            continue
+                        detected = single_peak_detection(
+                            peak_name=peak_name,
+                            class_name=cls,
+                            file_name=item["file"],
+                            dataset=[item],
+                            method_name=method_name,
+                            range_type=range_type,
+                            peak_ranges_file=peak_ranges_file,
+                            peak_amps_file=peak_amps_file
+                        )
+                        detected_all.extend(detected)
+
+                    df_metrics = compute_peak_metrics(
+                        dataset=[item for item in dataset if item["class"] == cls],
+                        detected_peaks=detected_all,
+                        peak_name=peak_name,
+                        class_name=cls
+                    )
+                    df_metrics["Method"] = method_name
+                    all_metrics.append(df_metrics)
+
+            df_all_metrics = pd.concat(all_metrics, ignore_index=True)
+            df_avg_metrics = df_all_metrics.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
+
+            # zapis do plików
+            df_all_metrics.to_csv(all_metrics_file, index=False)
+            df_avg_metrics.to_csv(avg_metrics_file, index=False)
+            print(f"Obliczono i zapisano wyniki: {method_name}")
+
+        results[method_name] = (df_all_metrics, df_avg_metrics)
+
+    return results
+
+
+def consolidate_results(results_dict, avg_index=1):
+    """
+    results_dict: słownik metod -> krotka(DataFrame_all, DataFrame_avg)
+    avg_index: który element krotki wybrać (domyślnie 1 -> df_avg)
+    """
+    dfs = []
+    for method_name, dfs_tuple in results_dict.items():
+        df = dfs_tuple[avg_index].copy()
+        df["Method"] = method_name  # upewniamy się, że jest kolumna Method
+        dfs.append(df)
+    return pd.concat(dfs, ignore_index=True)
+
 # %% ----------- RANGES FROM CROSSINGS -------
 def get_peak_range_from_crossings(crossings_for_file, peak_name):
     """
@@ -110,7 +197,7 @@ def get_peak_range_from_crossings(crossings_for_file, peak_name):
     return start, end
     
 # %%----------- METODY -------------
-def concave(signal, d2x_threshold=-0.002, prominence=0, threshold=None):
+def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
     """
     Wykrywa lokalne maksima sygnału (peaki) w obszarach, gdzie druga pochodna < d2x_threshold.
 
@@ -269,81 +356,81 @@ def wavelet(signal, prominence=0, w_range=(1,10), step=1):
     return np.array(peaks)
 
 # %% -------- DETECTION -------------
-def single_peak_detection_old(peak_name, class_name, file_name, 
-                              dataset, method_name, 
-                              peak_ranges_file=None, peak_amps_file=None):
-    """
-    Wykrywa piki w określonym przedziale czasowym dla jednego pliku.
+# def single_peak_detection_old(peak_name, class_name, file_name, 
+#                               dataset, method_name, 
+#                               peak_ranges_file=None, peak_amps_file=None):
+#     """
+#     Wykrywa piki w określonym przedziale czasowym dla jednego pliku.
     
-    Parameters
-    ----------
-    peak_name : str
-        'P1', 'P2' lub 'P3'
-    class_name : str
-        'Class1' ... 'Class4'
-    file_name : str
-        nazwa pliku sygnału
-    dataset : list
-        wynik load_data()
-    method_name : str
-        nazwa metody: 'concave', 'modified_scholkmann', 'curvature', 'line_distance'
-    peak_ranges_file : dict, optional
-        Zakresy czasowe dla danego pliku: {"P1": (start, end), "P2": (start, end), ...}
-        Jeśli None, używa globalnego PEAK_RANGES[class_name]
-    peak_amps_file : dict, optional
-        Zakresy amplitudy dla danego pliku: {"P1": (amin, amax), ...}
-        Jeśli None, używa globalnego PEAK_AMPS[class_name]
+#     Parameters
+#     ----------
+#     peak_name : str
+#         'P1', 'P2' lub 'P3'
+#     class_name : str
+#         'Class1' ... 'Class4'
+#     file_name : str
+#         nazwa pliku sygnału
+#     dataset : list
+#         wynik load_data()
+#     method_name : str
+#         nazwa metody: 'concave', 'modified_scholkmann', 'curvature', 'line_distance'
+#     peak_ranges_file : dict, optional
+#         Zakresy czasowe dla danego pliku: {"P1": (start, end), "P2": (start, end), ...}
+#         Jeśli None, używa globalnego PEAK_RANGES[class_name]
+#     peak_amps_file : dict, optional
+#         Zakresy amplitudy dla danego pliku: {"P1": (amin, amax), ...}
+#         Jeśli None, używa globalnego PEAK_AMPS[class_name]
         
-    Returns
-    -------
-    list[np.ndarray]
-        lista tablic: wykryte piki w podanym zakresie
-    """
+#     Returns
+#     -------
+#     list[np.ndarray]
+#         lista tablic: wykryte piki w podanym zakresie
+#     """
     
-    if peak_ranges_file is None or peak_name not in peak_ranges_file:
-        return []
+#     if peak_ranges_file is None or peak_name not in peak_ranges_file:
+#         return []
     
-    if method_name not in METHODS:
-        raise ValueError(f"Nieznana metoda: {method_name}")
+#     if method_name not in METHODS:
+#         raise ValueError(f"Nieznana metoda: {method_name}")
         
-    detect = METHODS[method_name]
+#     detect = METHODS[method_name]
     
-    if peak_ranges_file is not None:
-        t_start, t_end = peak_ranges_file[peak_name]
-    else:
-        t_start, t_end = PEAK_RANGES[class_name][peak_name]
+#     if peak_ranges_file is not None:
+#         t_start, t_end = peak_ranges_file[peak_name]
+#     else:
+#         t_start, t_end = PEAK_RANGES[class_name][peak_name]
     
-    if t_start is None or t_end is None:
-        return []
+#     if t_start is None or t_end is None:
+#         return []
 
-    if peak_amps_file is not None:
-        a_start, a_end = peak_amps_file[peak_name]
-    else:
-        a_start, a_end = PEAK_AMPS[class_name][peak_name]
+#     if peak_amps_file is not None:
+#         a_start, a_end = peak_amps_file[peak_name]
+#     else:
+#         a_start, a_end = PEAK_AMPS[class_name][peak_name]
 
     
-    detected_all = []
+#     detected_all = []
 
-    for item in dataset:
-        if item["class"] != class_name or item["file"] != file_name:
-            continue
+#     for item in dataset:
+#         if item["class"] != class_name or item["file"] != file_name:
+#             continue
 
-        signal_df = item["signal"]
-        t = signal_df.iloc[:, 0].values   # czas
-        y = signal_df.iloc[:, 1].values   # amplituda
+#         signal_df = item["signal"]
+#         t = signal_df.iloc[:, 0].values   # czas
+#         y = signal_df.iloc[:, 1].values   # amplituda
 
-        # wykryj wszystkie piki metodą
-        peaks = detect(y)
-        peaks = np.array(peaks, dtype=int)
+#         # wykryj wszystkie piki metodą
+#         peaks = detect(y)
+#         peaks = np.array(peaks, dtype=int)
 
-        # filtruj tylko te w zadanym zakresie czasu
-        peaks = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
-        peaks_in_range = peaks[(y[peaks] >= a_start) & (y[peaks] <= a_end)]
-        detected_all.append(peaks_in_range)
+#         # filtruj tylko te w zadanym zakresie czasu
+#         peaks = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
+#         peaks_in_range = peaks[(y[peaks] >= a_start) & (y[peaks] <= a_end)]
+#         detected_all.append(peaks_in_range)
 
-    return detected_all
+#     return detected_all
 
-def single_peak_detection(peak_name, class_name, file_name, dataset, method_name,
+def single_peak_detection_old2(peak_name, class_name, file_name, dataset, method_name, range_type="static",
                           peak_ranges_file=None, peak_amps_file=None):
     """
     Wykrywa piki w określonym przedziale czasowym dla jednego pliku.
@@ -354,20 +441,27 @@ def single_peak_detection(peak_name, class_name, file_name, dataset, method_name
     detect = METHODS[method_name]
 
     # --- obsługa zakresów czasowych i amplitud ---
-    if peak_ranges_file is None or peak_name not in peak_ranges_file:
-        return []
+    if peak_ranges_file==None:
+        t_start, t_end = -np.inf, np.inf
+    elif range_type=="crossing":
+        t_start, t_end = peak_ranges_file[peak_name]
+    else:
+        if class_name in peak_ranges_file and peak_name in peak_ranges_file[class_name]:
+            t_start, t_end = peak_ranges_file[class_name][peak_name]
+        else: 
+            t_start, t_end = None, None
+    # if t_range is None or any(v is None for v in t_range):
+    #     return []
 
-    t_range = peak_ranges_file[peak_name]
-    if t_range is None or any(v is None for v in t_range):
-        return []
-
-    t_start, t_end = t_range
-
-    if peak_amps_file is not None and peak_name in peak_amps_file:
+    if peak_amps_file==None:
+        a_start, a_end = -np.inf, np.inf
+    elif range_type=="crossing":
         a_start, a_end = peak_amps_file[peak_name]
     else:
-        a_start, a_end = -np.inf, np.inf  # brak ograniczeń amplitudy
-
+        if class_name in peak_amps_file and peak_name in peak_amps_file[class_name]:
+            a_start, a_end = peak_amps_file[class_name][peak_name]  # brak ograniczeń amplitudy
+        else: 
+            t_start, t_end = None, None
     # --- wykrywanie piku ---
     detected_all = []
 
@@ -390,8 +484,65 @@ def single_peak_detection(peak_name, class_name, file_name, dataset, method_name
 
     return detected_all
 
+def single_peak_detection(peak_name, class_name, file_name, dataset, method_name,
+                          range_type="static", peak_ranges_file=None, peak_amps_file=None):
+    """
+    Wykrywa piki w określonym przedziale czasowym dla jednego pliku.
+    Zwraca NaN jeśli brak klasy lub piku.
+    """
+    if method_name not in METHODS:
+        raise ValueError(f"Nieznana metoda: {method_name}")
+
+    detect = METHODS[method_name]
+
+    # --- obsługa zakresów czasowych i amplitud ---
+    # domyślnie brak ograniczeń
+    t_start, t_end = -np.inf, np.inf
+    a_start, a_end = -np.inf, np.inf
+
+    if peak_ranges_file is not None:
+        if range_type == "crossing":
+            # peak_ranges_file może być dla pojedynczego pliku: {"P1":(start,end), ...}
+            t_start, t_end = peak_ranges_file.get(peak_name, (np.nan, np.nan))
+        else:
+            t_start, t_end = peak_ranges_file.get(class_name, {}).get(peak_name, (np.nan, np.nan))
+
+    if peak_amps_file is not None:
+        if range_type == "crossing":
+            a_start, a_end = peak_amps_file.get(peak_name, (np.nan, np.nan))
+        else:
+            a_start, a_end = peak_amps_file.get(class_name, {}).get(peak_name, (np.nan, np.nan))
+
+    detected_all = []
+
+    # Filtrujemy sygnały dla danej klasy i pliku
+    class_items = [item for item in dataset if item["class"] == class_name and item["file"] == file_name]
+    if len(class_items) == 0:
+        # brak klasy → zwracamy NaN
+        detected_all.append(np.array([]))
+        return detected_all
+
+    item = class_items[0]
+    signal_df = item["signal"]
+    t = signal_df.iloc[:, 0].values
+    y = signal_df.iloc[:, 1].values
+
+    # wykryj piki
+    peaks = detect(y)
+    peaks = np.array(peaks, dtype=int)
+
+    # jeśli zakresy są NaN → pomin filtrowanie
+    if not np.isnan(t_start) and not np.isnan(t_end):
+        peaks = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
+    if not np.isnan(a_start) and not np.isnan(a_end):
+        peaks = peaks[(y[peaks] >= a_start) & (y[peaks] <= a_end)]
+
+    detected_all.append(peaks)
+    return detected_all
+
+
 # %% --------- METRICS, PLOTS ------
-def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, tolerance=5):
+def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name):
     metrics_list = []
     class_signals = [item for item in dataset if item["class"] == class_name]
     num_signals_in_class = len(class_signals)
@@ -411,6 +562,7 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
                 "Mean_X_Error": np.nan,
                 "Mean_Y_Error": np.nan,
                 "Mean_XY_Error": np.nan,
+                "Min_XY_Error": np.nan,
                 "Peak_Count": len(peaks),
                 "Reference_Peaks": ref_idx, 
                 "Detected_Peaks": list(peaks)
@@ -431,6 +583,7 @@ def compute_peak_metrics(dataset, detected_peaks, peak_name, class_name, toleran
             "Mean_X_Error": np.mean(dx),
             "Mean_Y_Error": np.mean(dy),
             "Mean_XY_Error": np.mean(dxy),
+            "Min_XY_Error": np.min(dxy),
             "Peak_Count": len(peaks),
             "Reference_Peaks": ref_idx, 
             "Detected_Peaks": list(peaks)
@@ -621,13 +774,43 @@ def plot_examples(data, dataset_name, example_indices=range(0,3)):
     plt.show()
 
  
-
+def plot_single_signal(dataset, class_name, index, show_peaks=True):
+    # Filtrujemy sygnały dla danej klasy
+    class_items = [item for item in dataset if item["class"] == class_name]
+    if index >= len(class_items):
+        print(f"Index {index} wykracza poza liczbę sygnałów w {class_name} ({len(class_items)}).")
+        return
+    
+    item = class_items[index]
+    signal_df = item["signal"]
+    t = signal_df.iloc[:, 0].values
+    y = signal_df.iloc[:, 1].values
+    
+    fig, ax = plt.subplots(figsize=(10,4))
+    ax.plot(t, y, color='black', lw=1.5, label="Sygnał ICP")
+    
+    if show_peaks:
+        peaks_ref = item["peaks_ref"]
+        for pk in ["P1", "P2", "P3"]:
+            peak_idx = peaks_ref.get(pk)
+            if peak_idx is not None and 0 <= peak_idx < len(y):
+                ax.scatter(t[peak_idx], y[peak_idx], s=60, label=f"Pik {pk}", zorder=5)
+    
+    ax.set_title(f"{class_name} – sygnał nr {index}", fontsize=16)
+    ax.set_xlabel("Numer próbki", fontsize=12)
+    ax.set_ylabel("Amplituda", fontsize=12)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    
+    return fig, ax
+    
+    
 # %% ------ PARAMETRY ---------------
 METHODS = {
     "concave": lambda sig: concave(sig, 0, 0, None),
     #"concave_d2x=-0,002": lambda sig:  concave(sig, -0.002, 0, None),
     
-    "modified_scholkmann_1_99": lambda sig: modified_scholkmann(sig, 1, 95),
+    "modified_scholkmann_1_99": lambda sig: modified_scholkmann(sig, 1, 99),
     #"modified_scholkmann_1_95": lambda sig: modified_scholkmann(sig, 1, 95),
     #"modified_scholkmann_1/2_95": lambda sig: modified_scholkmann(sig, 2, 95),
     #"modified_scholkmann_1/2_99": lambda sig: modified_scholkmann(sig, 2, 99),
@@ -638,34 +821,220 @@ METHODS = {
     "wavelet": lambda sig: wavelet(sig, 0)
 }
 
-PEAK_RANGES = {
+time_pm3 = {
     "Class1": {"P1": (17, 73), "P2": (34, 107), "P3": (60, 143)},
     "Class2": {"P1": (17, 59), "P2": (36, 98), "P3": (61, 138)},
     "Class3": {"P1": (13, 42), "P2": (32, 83), "P3": (49, 116)},
-    "Class4": {"P2": (32, 73)},
-}
+    "Class4": {"P2": (32, 74)},}
+# zaokraglone w gore 
+time_full = {
+    "Class1": {"P1": (20, 70), "P2": (38, 104), "P3": (63, 140)},
+    "Class2": {"P1": (20, 56), "P2": (39, 86), "P3": (64, 135)},
+    "Class3": {"P1": (16, 39), "P2": (35, 80), "P3": (52, 113)},
+    "Class4": {"P2": (35, 71)},}
 
-PEAK_AMPS = {
-    "Class1": {"P1": (0.86, 1), "P2": (0.32, 0.94), "P3": (0.13, 0.95)},
-    "Class2": {"P1": (0.78, 1), "P2": (0.71, 1), "P3": (0.24, 1)},
-    "Class3": {"P1": (0.19, 0.94), "P2": (0.73, 1), "P3": (0.62, 1)},
-    "Class4": {"P2": (0.91, 1)},
-}
+time_whis = {
+    "Class1": {"P1": (20, 48), "P2": (38, 85.5), "P3": (63, 132)},
+    "Class2": {"P1": (20, 48), "P2": (39, 82), "P3": (64, 121)},
+    "Class3": {"P1": (17, 37), "P2": (37, 77), "P3": (52, 109)},
+    "Class4": {"P2": (49, 71)},}
+
+
+amps_pm3 = {
+    "Class1": {"P1": (0.864, 1.0), "P2": (0.315, 0.937), "P3": (0.127, 0.952)},
+    "Class2": {"P1": (0.778, 1.0), "P2": (0.711, 1.0), "P3": (0.24, 1.0)},
+    "Class3": {"P1": (0.185, 0.941), "P2": (0.732, 1.0), "P3": (0.616, 1.0)},
+    "Class4": {"P2": (0.905, 1.0)}}
+
+amps_full = {
+    "Class1": {"P1": (0.914, 0.995), "P2": (0.365, 0.887), "P3": (0.177, 0.902)},
+    "Class2": {"P1": (0.828, 0.997), "P2": (0.761, 0.998), "P3": (0.29, 0.997)},
+    "Class3": {"P1": (0.235, 0.891), "P2": (0.782, 0.998), "P3": (0.666, 0.998)},
+    "Class4": {"P2": (0.955, 0.998)},}
+
+amps_whis = {
+    "Class1": {"P1": (0.938, 0.995), "P2": (0.474, 0.887), "P3": (0.219, 0.902)},
+    "Class2": {"P1": (0.842, 0.997), "P2": (0.898, 0.998), "P3": (0.303, 0.997)},
+    "Class3": {"P1": (0.242, 0.891), "P2": (0.944, 0.998), "P3": (0.697, 0.998)},
+    "Class4": {"P2": (0.985, 0.998)},}
+
 # %% ------- EXECUTION -----------
 
 base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
-data_it1 = load_data(base_path)
-# data_smooth = smooth_dataset(data)
+it1 = load_data_it1(base_path)
+# data_raw_it1 = data_it1
+it1_sm_4Hz = smooth_dataset(it1, inplace=False)
 
 
 base_path_2 = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\CSV_selected_RENAMED_IT2"
-data = load_data_it2(base_path_2)
-data_smooth = smooth_dataset(data)
+it2 = load_data_it2(base_path_2)
+# data_raw_it2 = data_it2
+it2_sm_4Hz = smooth_dataset(it2, inplace=False)
+
 
 pd.options.display.float_format = '{:.4f}'.format
 
+# ------------------ NORMAL, NO RANGES ------------------
+results_normal_no_ranges = wyniki(
+    dataset=it1,
+    dataset_name="it1",
+    range_type=None,   # brak zakresów
+    methods=METHODS.keys()
+)
+
+# ------------------ NORMAL, RANGES MINMAX ------------------
+results_normal_ranges = wyniki(
+    dataset=it1,
+    dataset_name="it1",
+    range_type="static",   # używa peak_ranges_minmax
+    peak_ranges_file = time_full,
+    peak_amps_file = amps_full,
+    range_name="minmax",
+    methods=METHODS.keys()
+)
+
+# ------------------ SMOOTH, NO RANGES ------------------
+results_smooth_no_ranges = wyniki(
+    dataset=it1_sm_4Hz,
+    dataset_name="it1_sm_4Hz",
+    range_type=None,
+    methods=METHODS.keys()
+)
+
+# ------------------ SMOOTH, RANGES MINMAX ------------------
+results_smooth_ranges = wyniki(
+    dataset=it1_sm_4Hz,
+    dataset_name="it1_sm_4Hz",
+    range_type="static",   # używa peak_ranges_minmax
+    peak_ranges_file = time_full,
+    peak_amps_file = amps_full,
+    range_name="minmax",
+    methods=METHODS.keys()
+)
+
+# # ---------- POROWNANKO ---------
+# 1. Nadajemy unikalne nazwy kolumn dla każdego zestawu wyników
+# Konsolidacja
+df_norm = consolidate_results(results_normal_no_ranges)
+df_norm_ranges = consolidate_results(results_normal_ranges)
+df_smooth = consolidate_results(results_smooth_no_ranges)
+df_smooth_ranges = consolidate_results(results_smooth_ranges)
+
+# Nadanie unikalnych nazw kolumn
+cols_needed = ["Class", "Peak", "Method", "Mean_XY_Error", "Min_XY_Error"]
+
+df_norm = df_norm[cols_needed].rename(columns={
+    "Mean_XY_Error": "XY_Error",
+    "Min_XY_Error": "Min_XY_Error"
+})
+
+df_smooth = df_smooth[cols_needed].rename(columns={
+    "Mean_XY_Error": "XY_Error_Smooth",
+    "Min_XY_Error": "Min_XY_Error_Smooth"
+})
+
+df_norm_ranges = df_norm_ranges[cols_needed].rename(columns={
+    "Mean_XY_Error": "XY_Error_Ranges",
+    "Min_XY_Error": "Min_XY_Error_Ranges"
+})
+
+df_smooth_ranges = df_smooth_ranges[cols_needed].rename(columns={
+    "Mean_XY_Error": "XY_Error_Smooth_Ranges",
+    "Min_XY_Error": "Min_XY_Error_Smooth_Ranges"
+})
+# Łączenie DataFrame'ów i liczenie różnic
+df_compare = pd.merge(df_norm, df_smooth, on=["Class", "Peak", "Method"], how="inner")
+df_compare = pd.merge(df_compare, df_norm_ranges, on=["Class", "Peak", "Method"], how="inner")
+df_compare = pd.merge(df_compare, df_smooth_ranges, on=["Class", "Peak", "Method"], how="inner")
+
+df_compare["XY_Diff"] = df_compare["XY_Error"] - df_compare["XY_Error_Smooth"]
+df_compare["Min_XY_Diff"] = df_compare["Min_XY_Error"] - df_compare["Min_XY_Error_Smooth"]
+df_compare["XY_Diff_Range"] = df_compare["XY_Error"] - df_compare["XY_Error_Ranges"]
+df_compare["Min_XY_Diff_Range"] = df_compare["Min_XY_Error"] - df_compare["Min_XY_Error_Ranges"]
+df_compare["XY_Diff_Range_Smooth"] = df_compare["XY_Error_Smooth"] - df_compare["XY_Error_Smooth_Ranges"]
+df_compare["Min_XY_Diff_Range_Smooth"] = df_compare["Min_XY_Error_Smooth"] - df_compare["Min_XY_Error_Smooth_Ranges"]
+
+diff_columns = [col for col in df_compare.columns if "_Diff" in col]
+sum_diff = {col: df_compare[col].sum() for col in diff_columns}
+
+print(df_compare)
+print(sum_diff)
+
+# df_norm = df_avg_metrics[
+#     ["Class", "Peak", "Method", "Mean_XY_Error", "Min_XY_Error"]
+# ].rename(columns={
+#     "Mean_XY_Error": "XY_Error",
+#     "Min_XY_Error": "Min_XY_Error"
+# })
+
+# df_smooth = df_avg_metrics_smooth[
+#     ["Class", "Peak", "Method", "Mean_XY_Error", "Min_XY_Error"]
+# ].rename(columns={
+#     "Mean_XY_Error": "XY_Error_Smooth",
+#     "Min_XY_Error": "Min_XY_Error_Smooth"
+# })
+
+# df_norm_ranges = df_avg_metrics_ranges[
+#     ["Class", "Peak", "Method", "Mean_XY_Error", "Min_XY_Error"]
+# ].rename(columns={
+#     "Mean_XY_Error": "XY_Error_Ranges",
+#     "Min_XY_Error": "Min_XY_Error_Ranges"
+# })
+    
+# df_smooth_ranges = df_avg_metrics_ranges_smooth[
+#     ["Class", "Peak", "Method", "Mean_XY_Error", "Min_XY_Error"]
+# ].rename(columns={
+#     "Mean_XY_Error": "XY_Error_Smooth_Ranges",
+#     "Min_XY_Error": "Min_XY_Error_Smooth_Ranges"
+# })
+    
+# # df_compare = pd.merge(
+# #     df_norm,
+# #     df_smooth,
+# #     df_norm_ranges,
+# #     df_smooth_ranges,
+# #     on=["Class", "Peak", "Method"],
+# #     how="inner"
+# # )
+
+# df_compare = pd.merge(df_norm, df_smooth, on=["Class", "Peak", "Method"], how="inner")
+# df_compare = pd.merge(df_compare, df_norm_ranges, on=["Class", "Peak", "Method"], how="inner")
+# df_compare = pd.merge(df_compare, df_smooth_ranges, on=["Class", "Peak", "Method"], how="inner")
+
+
+# df_compare["XY_Diff"] = (
+#     df_compare["XY_Error"]
+#     - df_compare["XY_Error_Smooth"]
+# )
+
+# df_compare["Min_XY_Diff"] = (
+#     df_compare["Min_XY_Error"]
+#     - df_compare["Min_XY_Error_Smooth"]
+# )
+
+# df_compare["XY_Diff_Range"] = (
+#     df_compare["XY_Error"]
+#     - df_compare["XY_Error_Ranges"]
+# )
+
+# df_compare["Min_XY_Diff_Range"] = (
+#     df_compare["Min_XY_Error"]
+#     - df_compare["Min_XY_Error_Ranges"]
+# )
+# print(df_compare)
+
+# wybieramy wszystkie kolumny z "_Diff" w nazwie
+# diff_columns = [col for col in df_compare.columns if "_Diff" in col]
+
+# # tworzymy słownik sum dla każdej kolumny
+# sum_diff = {col: df_compare[col].sum() for col in diff_columns}
+
+# print(sum_diff)
+
+
+"""
 crossings, crossings_metrics = compute_crossings_summary(
-    [item for item in data_smooth if item["class"] in ["Class1", "Class2", "Class3"]],
+    [item for item in analyzed_data if item["class"] in ["Class1", "Class2", "Class3"]],
     window_fast=2,
     window_slow=4,
     min_distance=0,
@@ -692,19 +1061,18 @@ for cls, cls_crossings in crossings.items():
                 continue  # np. brak P3 w Class4
         crossing_ranges[file_name] = peak_dict
 
+# ---------------- stale zakresy ---------------------
 all_metrics = []
 
 for method_name in METHODS.keys():
     for cls in ["Class1", "Class2", "Class3", "Class4"]:
-        for peak_name in PEAK_RANGES.get(cls, {}).keys():
+        for peak_name in ["P1","P2","P3"]:
             detected_all = []
 
-            for item in data_smooth:
+            for item in analyzed_data:
                 if item["class"] != cls:
                     continue
-
                 file_name = item["file"]
-
 
                 detected = single_peak_detection(
                     peak_name=peak_name,
@@ -719,7 +1087,7 @@ for method_name in METHODS.keys():
 
             # metryki dla wszystkich sygnałów tej klasy i piku
             df_metrics = compute_peak_metrics(
-                dataset=[item for item in data_smooth if item["class"] == cls],
+                dataset=[item for item in analyzed_data if item["class"] == cls],
                 detected_peaks=detected_all,
                 peak_name=peak_name,
                 class_name=cls
@@ -732,6 +1100,7 @@ df_all_metrics = pd.concat(all_metrics, ignore_index=True)
 df_avg_metrics = df_all_metrics.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
 print(df_avg_metrics)
 
+# ------------------- crossingi ---------------------
 all_metrics_crossings = []
 
 for method_name in METHODS.keys():
@@ -739,7 +1108,7 @@ for method_name in METHODS.keys():
         for peak_name in ["P1","P2","P3"]:
             detected_all = []
 
-            for item in data_smooth:
+            for item in analyzed_data:
                 if item["class"] != cls:
                     continue
                 file_name = item["file"]
@@ -763,7 +1132,7 @@ for method_name in METHODS.keys():
                 continue
 
             df_metrics = compute_peak_metrics(
-                dataset=[item for item in data_smooth if item["class"] == cls],
+                dataset=[item for item in analyzed_data if item["class"] == cls],
                 detected_peaks=detected_all,
                 peak_name=peak_name,
                 class_name=cls
@@ -778,10 +1147,10 @@ print(df_avg_metrics_crossings)
 # %% ----- PLOT - średni sygnał i histogramy -------- 
 # zakresy stałe 
 for method_name in METHODS.keys(): 
-    plot_class_peaks_grid(data_smooth, df_all_metrics, method_name, mode="static")  # crossingi 
+    plot_class_peaks_grid(analyzed_data, df_all_metrics, method_name, mode="static")  # crossingi 
 
 for method_name in METHODS.keys(): 
-    plot_class_peaks_grid(data_smooth, df_all_metrics_crossings, method_name, mode="crossing") 
+    plot_class_peaks_grid(analyzed_data, df_all_metrics_crossings, method_name, mode="crossing") 
 
 # %% ------- zapis wyników do CSV ------ 
 
@@ -794,29 +1163,7 @@ print("Zapisano: avg_metrics_static.csv oraz all_metrics_static.csv")
 df_avg_metrics_crossings.to_csv("avg_metrics_crossings_neue.csv", index=False)
 # df_all_metrics_crossings.to_csv("all_metrics_crossings.csv", index=False)
 print("Zapisano: avg_metrics_crossings.csv oraz all_metrics_crossings.csv")
-
-
-# %% ----- PLOT - sredni sygnal i histogramy --------
-# zakresy stałe
-# for method_name in METHODS.keys():
-#     plot_class_peaks_grid(data_smooth, df_all_metrics, method_name, mode="static")
-
-# # crossingi
-# for method_name in METHODS.keys():
-#     plot_class_peaks_grid(data_smooth, df_all_metrics_crossings, method_name, mode="crossing")
-
-# %% ------- zapis wynikow do CSV ------
-# --- zapis wyników zakresów stałych ---
-# df_avg_metrics.to_csv("avg_metrics_static.csv", index=False)
-# df_all_metrics.to_csv("all_metrics_static.csv", index=False)
-
-# print("Zapisano: avg_metrics_static.csv oraz all_metrics_static.csv")
-
-# # --- zapis wyników crossingów ---
-# df_avg_metrics_crossings.to_csv("avg_metrics_crossings.csv", index=False)
-# df_all_metrics_crossings.to_csv("all_metrics_crossings.csv", index=False)
-
-# print("Zapisano: avg_metrics_crossings.csv oraz all_metrics_crossings.csv")
+"""
 
 # %% ------- ILUSTRACJA - METODY ------
 """
@@ -941,9 +1288,12 @@ plt.tight_layout(pad=3.0)
 plt.show()
 """
 # %% ---------- ILUSTRACJA - przykłady sygnalow
-"""
+'''
 # Rysujemy przykłady nr 30–35 w klasach IT1 i IT2
-plot_examples(data_it1, "IT1", example_indices=range(40,44))
-plot_examples(data, "IT2", example_indices=range(25,29))
-"""
+plot_examples(data_it1, "IT1", example_indices=range(80,84))
+plot_examples(data_smooth_it1, "IT2", example_indices=range(80,84))
+
+'''
+# fig, ax = plot_single_signal(data_it1, "Class2", 9)
+# plt.show()
 
