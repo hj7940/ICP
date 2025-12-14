@@ -166,3 +166,81 @@ Created on Sun Dec 14 03:30:43 2025
 # df_avg_metrics_ranges_smooth = df_all_metrics_ranges_smooth.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
 # print(df_avg_metrics_ranges_smooth)
 
+
+def load_data_it1(base_path):
+    dataset = []
+
+    for i in range(1, 5):
+        class_name = f"Class{i}"
+
+        # peaks CSV
+        peaks_path = os.path.join(base_path, f"{class_name}_peaks.csv")
+        peaks_df = pd.read_csv(peaks_path)
+
+        # sygnały
+        folder = os.path.join(base_path, class_name)
+        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_example_*.csv")))
+
+        for f in csv_files:
+            signal_df = pd.read_csv(f)
+            file_name = os.path.splitext(os.path.basename(f))[0]
+
+            # znajdź wiersz z pikami
+            row = peaks_df[peaks_df["File"] == file_name]
+            if len(row) == 1:
+                row = row.iloc[0]
+                peaks_ref = {
+                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
+                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
+                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
+                }
+            else:
+                peaks_ref = {"P1": None, "P2": None, "P3": None}
+
+            dataset.append({
+                "class": class_name,
+                "file": file_name,
+                "signal": signal_df,
+                "peaks_ref": peaks_ref
+            })
+
+    return dataset
+
+def load_data_it2(base_path):
+    dataset = []
+
+    for i in range(1, 5):
+        class_name = f"Class{i}"
+
+        # peaks CSV
+        peaks_path = os.path.join(base_path, f"{class_name}_it2_peaks.csv")
+        peaks_df = pd.read_csv(peaks_path)
+
+        # sygnały
+        folder = os.path.join(base_path, class_name)
+        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_it2_example_*.csv")))
+
+        for f in csv_files:
+            signal_df = pd.read_csv(f)
+            file_name = os.path.splitext(os.path.basename(f))[0]
+
+            # znajdź wiersz z pikami
+            row = peaks_df[peaks_df["File"] == file_name]
+            if len(row) == 1:
+                row = row.iloc[0]
+                peaks_ref = {
+                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
+                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
+                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
+                }
+            else:
+                peaks_ref = {"P1": None, "P2": None, "P3": None}
+
+            dataset.append({
+                "class": class_name,
+                "file": file_name,
+                "signal": signal_df,
+                "peaks_ref": peaks_ref
+            })
+
+    return dataset

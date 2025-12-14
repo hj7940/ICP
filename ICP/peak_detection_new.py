@@ -1,3 +1,4 @@
+# %% ------ IMPORTS -------------
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,32 +7,56 @@ import os
 from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 import itertools
 import time
-from moving_average import compute_crossings_summary, smooth_dataset
+from moving_average import compute_crossings, smooth_dataset
 from functools import reduce
 
+pd.options.display.float_format = '{:.4f}'.format
+
 # %% ------- DANE -------------
-def load_data_it1(base_path):
-    dataset = []
 
+def load_dataset(base_path, it_type):
+    """
+    Ładuje sygnały i piki dla IT1 lub IT2.
+    
+    Parameters
+    ----------
+    base_path : str
+        sciezka do glownego folderu z plikami danego zestawu
+    it_type : str 
+        "it1" lub "it2"
+        
+    Returns
+    -------
+    dataset : list
+        Lista zawierajaca elementy:
+            
+        - class : str (np. "Class1")
+        
+        - file : str (np. "Class1_example_0001")
+        
+        - signal: DataFrame (kolumny: Sample_no, ICP)
+        
+        - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
+    """
+    dataset = []
+    file_pattern = "{class_name}_example_*.csv" if it_type == "it1" else "{class_name}_it2_example_*.csv"
+    peaks_suffix = "_peaks.csv" if it_type == "it1" else "_it2_peaks.csv"
+    
     for i in range(1, 5):
         class_name = f"Class{i}"
-
-        # peaks CSV
-        peaks_path = os.path.join(base_path, f"{class_name}_peaks.csv")
-        peaks_df = pd.read_csv(peaks_path)
-
-        # sygnały
-        folder = os.path.join(base_path, class_name)
-        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_example_*.csv")))
-
-        for f in csv_files:
+        peaks_path = os.path.join(base_path, f"{class_name}{peaks_suffix}") # sciezka do pliku z pikami
+        peaks_df = pd.read_csv(peaks_path) # wczytuje piki dla danej klasy
+        
+        folder = os.path.join(base_path, class_name) # sygnaly dla danej klasy
+        csv_files = sorted(glob.glob(os.path.join(folder, file_pattern.format(class_name=class_name))))
+        
+        for f in csv_files: # f to poszczegolne sygnaly
             signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0]
-
-            # znajdź wiersz z pikami
-            row = peaks_df[peaks_df["File"] == file_name]
-            if len(row) == 1:
-                row = row.iloc[0]
+            file_name = os.path.splitext(os.path.basename(f))[0] # zwraca tylko nazwe pliku bez rozszerzenia
+            
+            row = peaks_df[peaks_df["File"] == file_name]  # df zawierajacy wiersze dla ktorych File==file_name
+            if len(row) == 1: # spawdzenie czy DOKLADNIE JEDEN wiersz
+                row = row.iloc[0] # z data frame 2d do series 1d
                 peaks_ref = {
                     "P1": int(row["P1"]) if row["P1"] >= 0 else None,
                     "P2": int(row["P2"]) if row["P2"] >= 0 else None,
@@ -39,57 +64,20 @@ def load_data_it1(base_path):
                 }
             else:
                 peaks_ref = {"P1": None, "P2": None, "P3": None}
-
+            
             dataset.append({
                 "class": class_name,
                 "file": file_name,
                 "signal": signal_df,
                 "peaks_ref": peaks_ref
             })
-
+    
     return dataset
 
-def load_data_it2(base_path):
-    dataset = []
-
-    for i in range(1, 5):
-        class_name = f"Class{i}"
-
-        # peaks CSV
-        peaks_path = os.path.join(base_path, f"{class_name}_it2_peaks.csv")
-        peaks_df = pd.read_csv(peaks_path)
-
-        # sygnały
-        folder = os.path.join(base_path, class_name)
-        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_it2_example_*.csv")))
-
-        for f in csv_files:
-            signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0]
-
-            # znajdź wiersz z pikami
-            row = peaks_df[peaks_df["File"] == file_name]
-            if len(row) == 1:
-                row = row.iloc[0]
-                peaks_ref = {
-                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
-                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
-                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
-                }
-            else:
-                peaks_ref = {"P1": None, "P2": None, "P3": None}
-
-            dataset.append({
-                "class": class_name,
-                "file": file_name,
-                "signal": signal_df,
-                "peaks_ref": peaks_ref
-            })
-
-    return dataset
 
 def wyniki(
-    dataset, dataset_name,      # "it1" lub "it2"
+    dataset, 
+    dataset_name,      # "it1" lub "it2"
     range_type=None,
     peak_ranges_file=None,
     peak_amps_file=None,
@@ -99,13 +87,26 @@ def wyniki(
     """
     Liczy lub wczytuje metryki dla danej konfiguracji danych i smoothingu.
     Każda metoda zapisuje swoje wyniki osobno w folderze dedykowanym dla konfiguracji.
+    
+    Parameters:
+    ----------
+    dataset : list
+        dane (sygnaly+piki)
+    dataset_name : str
+        nazwa zestawu danych
+    range_type : 
+    
+   
+        
     """
     if methods is None:
         methods = METHODS.keys()
+    
 
     # unikalny folder dla konfiguracji
     # range_str = range_type if range_type else "no_range"
-    folder_wyniki = os.path.join("wyniki", f"{dataset_name}_{range_name}")
+
+    folder_wyniki = os.path.join("wyniki", f"{dataset_name}")
     os.makedirs(folder_wyniki, exist_ok=True)
 
     results = {}
@@ -120,6 +121,8 @@ def wyniki(
             df_avg_metrics = pd.read_csv(avg_metrics_file)
             print(f"Wczytano zapisane wyniki: {method_name}")
         else:
+            if range_type == "crossing":
+                crossings_by_class = compute_crossings(dataset)
             # liczenie metryk
             all_metrics = []
             for cls in ["Class1", "Class2", "Class3", "Class4"]:
@@ -161,6 +164,92 @@ def wyniki(
 
     return results
 
+def wyniki_crossings(
+    dataset,
+    dataset_name,
+    crossing_ranges,
+    methods
+):
+    folder_wyniki = os.path.join("wyniki", f"{dataset_name}")
+    os.makedirs(folder_wyniki, exist_ok=True)
+
+    results = {}
+
+    for method_name in methods:
+        all_metrics_file = os.path.join(folder_wyniki, f"{method_name}_all_metrics.csv")
+        avg_metrics_file = os.path.join(folder_wyniki, f"{method_name}_avg_metrics.csv")
+
+        if os.path.exists(all_metrics_file) and os.path.exists(avg_metrics_file):
+            df_all = pd.read_csv(all_metrics_file)
+            df_avg = pd.read_csv(avg_metrics_file)
+            results[method_name] = (df_all, df_avg)
+            continue
+
+        all_metrics = []
+
+        for cls in ["Class1", "Class2", "Class3"]:
+            for peak_name in ["P1", "P2", "P3"]:
+
+                detected_all = []
+
+                for item in dataset:
+                    if item["class"] != cls:
+                        continue
+
+                    file_name = item["file"]
+                    if file_name not in crossing_ranges:
+                        continue
+                    if peak_name not in crossing_ranges[file_name]:
+                        continue
+
+                    detected = single_peak_detection(
+                        peak_name=peak_name,
+                        class_name=cls,
+                        file_name=file_name,
+                        dataset=[item],
+                        method_name=method_name,
+                        range_type="crossing",
+                        peak_ranges_file=crossing_ranges[file_name],
+                        peak_amps_file=None
+                    )
+                    detected_all.extend(detected)
+
+                if not detected_all:
+                    continue
+
+                df_metrics = compute_peak_metrics(
+                    dataset=[item for item in dataset if item["class"] == cls],
+                    detected_peaks=detected_all,
+                    peak_name=peak_name,
+                    class_name=cls
+                )
+                df_metrics["Method"] = method_name
+                all_metrics.append(df_metrics)
+
+        if not all_metrics:
+            df_all = pd.DataFrame(columns=["Class", "Peak", "File", "Mean_X_Error", "Mean_Y_Error",
+                                       "Mean_XY_Error", "Min_XY_Error", "Peak_Count",
+                                       "Reference_Peaks", "Detected_Peaks",
+                                       "Num_Signals_in_Class", "Num_Signals_with_Peak"])
+            df_avg = df_all.copy()
+            results[method_name] = (df_all, df_avg)
+            continue
+
+        df_all = pd.concat(all_metrics, ignore_index=True)
+        df_avg = (
+            df_all
+            .groupby(["Class", "Peak", "Method"])
+            .mean(numeric_only=True)
+            .reset_index()
+        )
+
+        df_all.to_csv(all_metrics_file, index=False)
+        df_avg.to_csv(avg_metrics_file, index=False)
+
+        results[method_name] = (df_all, df_avg)
+
+    return results
+
 
 def consolidate_results(results_dict, avg_index=1):
     """
@@ -173,6 +262,21 @@ def consolidate_results(results_dict, avg_index=1):
         df["Method"] = method_name  # upewniamy się, że jest kolumna Method
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
+
+def top5_configs(df, peak_name, class_name, metric="XY_Error"):
+    """
+    Zwraca top 5 konfiguracji dla danego piku i klasy,
+    dla każdego pliku osobno.
+    """
+    df_filtered = df[(df["Peak"] == peak_name) & (df["Class"] == class_name)]
+    
+    # Grupujemy po pliku i sortujemy według metryki rosnąco (bo chcemy najmniejszy błąd)
+    top5_per_file = df_filtered.groupby("File").apply(
+        lambda x: x.nsmallest(5, metric)
+    ).reset_index(drop=True)
+    
+    return top5_per_file
+
 
 # %% ----------- RANGES FROM CROSSINGS -------
 def get_peak_range_from_crossings(crossings_for_file, peak_name):
@@ -356,79 +460,6 @@ def wavelet(signal, prominence=0, w_range=(1,10), step=1):
     return np.array(peaks)
 
 # %% -------- DETECTION -------------
-# def single_peak_detection_old(peak_name, class_name, file_name, 
-#                               dataset, method_name, 
-#                               peak_ranges_file=None, peak_amps_file=None):
-#     """
-#     Wykrywa piki w określonym przedziale czasowym dla jednego pliku.
-    
-#     Parameters
-#     ----------
-#     peak_name : str
-#         'P1', 'P2' lub 'P3'
-#     class_name : str
-#         'Class1' ... 'Class4'
-#     file_name : str
-#         nazwa pliku sygnału
-#     dataset : list
-#         wynik load_data()
-#     method_name : str
-#         nazwa metody: 'concave', 'modified_scholkmann', 'curvature', 'line_distance'
-#     peak_ranges_file : dict, optional
-#         Zakresy czasowe dla danego pliku: {"P1": (start, end), "P2": (start, end), ...}
-#         Jeśli None, używa globalnego PEAK_RANGES[class_name]
-#     peak_amps_file : dict, optional
-#         Zakresy amplitudy dla danego pliku: {"P1": (amin, amax), ...}
-#         Jeśli None, używa globalnego PEAK_AMPS[class_name]
-        
-#     Returns
-#     -------
-#     list[np.ndarray]
-#         lista tablic: wykryte piki w podanym zakresie
-#     """
-    
-#     if peak_ranges_file is None or peak_name not in peak_ranges_file:
-#         return []
-    
-#     if method_name not in METHODS:
-#         raise ValueError(f"Nieznana metoda: {method_name}")
-        
-#     detect = METHODS[method_name]
-    
-#     if peak_ranges_file is not None:
-#         t_start, t_end = peak_ranges_file[peak_name]
-#     else:
-#         t_start, t_end = PEAK_RANGES[class_name][peak_name]
-    
-#     if t_start is None or t_end is None:
-#         return []
-
-#     if peak_amps_file is not None:
-#         a_start, a_end = peak_amps_file[peak_name]
-#     else:
-#         a_start, a_end = PEAK_AMPS[class_name][peak_name]
-
-    
-#     detected_all = []
-
-#     for item in dataset:
-#         if item["class"] != class_name or item["file"] != file_name:
-#             continue
-
-#         signal_df = item["signal"]
-#         t = signal_df.iloc[:, 0].values   # czas
-#         y = signal_df.iloc[:, 1].values   # amplituda
-
-#         # wykryj wszystkie piki metodą
-#         peaks = detect(y)
-#         peaks = np.array(peaks, dtype=int)
-
-#         # filtruj tylko te w zadanym zakresie czasu
-#         peaks = peaks[(t[peaks] >= t_start) & (t[peaks] <= t_end)]
-#         peaks_in_range = peaks[(y[peaks] >= a_start) & (y[peaks] <= a_end)]
-#         detected_all.append(peaks_in_range)
-
-#     return detected_all
 
 def single_peak_detection_old2(peak_name, class_name, file_name, dataset, method_name, range_type="static",
                           peak_ranges_file=None, peak_amps_file=None):
@@ -808,12 +839,13 @@ def plot_single_signal(dataset, class_name, index, show_peaks=True):
 # %% ------ PARAMETRY ---------------
 METHODS = {
     "concave": lambda sig: concave(sig, 0, 0, None),
-    #"concave_d2x=-0,002": lambda sig:  concave(sig, -0.002, 0, None),
+    "concave_d2x=-0,002": lambda sig:  concave(sig, -0.002, 0, None),
+    "concave_d2x=0,002": lambda sig:  concave(sig, 0.002, 0, None),
     
     "modified_scholkmann_1_99": lambda sig: modified_scholkmann(sig, 1, 99),
-    #"modified_scholkmann_1_95": lambda sig: modified_scholkmann(sig, 1, 95),
-    #"modified_scholkmann_1/2_95": lambda sig: modified_scholkmann(sig, 2, 95),
-    #"modified_scholkmann_1/2_99": lambda sig: modified_scholkmann(sig, 2, 99),
+    "modified_scholkmann_1_95": lambda sig: modified_scholkmann(sig, 1, 95),
+    "modified_scholkmann_1-2_95": lambda sig: modified_scholkmann(sig, 2, 95),
+    "modified_scholkmann_1-2_99": lambda sig: modified_scholkmann(sig, 2, 99),
     
     "curvature": lambda sig: curvature(sig, 0, 0, None),
     "line_distance_10": lambda sig: line_distance(sig, 0,"vertical", 10),
@@ -833,7 +865,7 @@ time_full = {
     "Class3": {"P1": (16, 39), "P2": (35, 80), "P3": (52, 113)},
     "Class4": {"P2": (35, 71)},}
 
-time_whis = {
+time_whiskers = {
     "Class1": {"P1": (20, 48), "P2": (38, 85.5), "P3": (63, 132)},
     "Class2": {"P1": (20, 48), "P2": (39, 82), "P3": (64, 121)},
     "Class3": {"P1": (17, 37), "P2": (37, 77), "P3": (52, 109)},
@@ -852,28 +884,206 @@ amps_full = {
     "Class3": {"P1": (0.235, 0.891), "P2": (0.782, 0.998), "P3": (0.666, 0.998)},
     "Class4": {"P2": (0.955, 0.998)},}
 
-amps_whis = {
+amps_whiskers = {
     "Class1": {"P1": (0.938, 0.995), "P2": (0.474, 0.887), "P3": (0.219, 0.902)},
     "Class2": {"P1": (0.842, 0.997), "P2": (0.898, 0.998), "P3": (0.303, 0.997)},
     "Class3": {"P1": (0.242, 0.891), "P2": (0.944, 0.998), "P3": (0.697, 0.998)},
     "Class4": {"P2": (0.985, 0.998)},}
 
 # %% ------- EXECUTION -----------
-
+# %% -------- LOAD DATA ------
 base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
-it1 = load_data_it1(base_path)
+it1 = load_dataset(base_path, "it1")
 # data_raw_it1 = data_it1
-it1_sm_4Hz = smooth_dataset(it1, inplace=False)
+it1_sm_4Hz = smooth_dataset(it1, cutoff=4, inplace=False)
+it1_sm_3Hz = smooth_dataset(it1, cutoff=3, inplace=False)
 
 
-base_path_2 = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\CSV_selected_RENAMED_IT2"
-it2 = load_data_it2(base_path_2)
+base_path_2 = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it2"
+it2 = load_dataset(base_path_2, "it2")
 # data_raw_it2 = data_it2
-it2_sm_4Hz = smooth_dataset(it2, inplace=False)
+it2_sm_4Hz = smooth_dataset(it2, cutoff=4, inplace=False)
+it2_sm_3Hz = smooth_dataset(it1, cutoff=3, inplace=False)
+
+# %% -------- PARAMETRY -----------
+SMOOTHING = {
+    "it1": {
+        "none": it1,
+        "4Hz": it1_sm_4Hz,
+        "3Hz": it1_sm_3Hz,
+    },
+    "it2": {
+        "none": it2,
+        "4Hz": it2_sm_4Hz,
+        "3Hz": it2_sm_3Hz,
+    }
+}
+
+RANGES = {
+    "none": {
+        "type": None
+    },
+    "full": {
+        "type": "static",
+        "time": time_full,
+        "amps": amps_full
+    },
+    "pm3": {
+        "type": "static",
+        "time": time_pm3,
+        "amps": amps_pm3
+    },
+    "whiskers": {
+        "type": "static",
+        "time": time_whiskers,
+        "amps": amps_whiskers
+    },
+    "crossings": {
+        "type": "crossing",
+        "time": time_crossings
+    }
+}
+
+# %% ------------ WSZYSTKIE WYNIKI ------------
+METHODS_LIST = list(METHODS.keys())
+ALL_RESULTS = {}
+
+for dataset_name in ["it1", "it2"]:
+
+    for smoothing_name, dataset in SMOOTHING[dataset_name].items(): # for key, value in dict.items():
+
+        # 🔹 crossing liczymy raz na (dataset × smoothing)
+        crossing_ranges = None
+
+        for range_name, range_cfg in RANGES.items():
+
+            config_name = f"{dataset_name}_sm-{smoothing_name}_range-{range_name}"
+            print(f"\n=== {config_name} ===")
+
+            results_per_method = {}
+
+            # ---------- CROSSINGS ----------
+            if range_cfg["type"] == "crossing":
+
+                if crossing_ranges is None:
+                    print("Crossing ranges to None")
+                    crossing_ranges, _ = compute_crossings(dataset)
+                    for method_name in METHODS_LIST:
+                        df_all, df_avg = wyniki_crossings(
+                            dataset=dataset,
+                            dataset_name=config_name,
+                            crossing_ranges=crossing_ranges,
+                            methods=[method_name]
+                        )[method_name]  # wyniki zwracane są w słowniku {method: (df_all, df_avg)}
+                        results_per_method[method_name] = (df_all, df_avg)
+                print("Nie wchodzi fdo petli wynikow")
+
+            # ---------- STATIC / NONE ----------
+            else:
+                for method_name in METHODS_LIST:
+                    df_all, df_avg = wyniki(
+                        dataset=dataset,
+                        dataset_name=config_name,
+                        range_type=range_cfg["type"],
+                        peak_ranges_file=range_cfg.get("time"),
+                        peak_amps_file=range_cfg.get("amps"),
+                        range_name=range_name if range_cfg["type"] else None,
+                        methods=[method_name]  # zwracamy po jednej metodzie
+                    )[method_name]  # wyniki zwracane są w słowniku {method: (df_all, df_avg)}
+                    results_per_method[method_name] = (df_all, df_avg)
+
+            ALL_RESULTS[config_name] = results_per_method
 
 
-pd.options.display.float_format = '{:.4f}'.format
+"""
+METHODS_LIST = list(METHODS.keys())
 
+
+ALL_RESULTS = {}
+
+for dataset_name in ["it1", "it2"]:
+
+    for smoothing_name, dataset in SMOOTHING[dataset_name].items():
+
+        for range_name, range_cfg in RANGES.items():
+
+            config_name = f"{dataset_name}_sm-{smoothing_name}_range-{range_name}"
+            print(f"\n=== {config_name} ===")
+
+            # ---------- CROSSINGS ----------
+            if range_cfg["type"] == "crossing":
+                results_all_files = []
+
+                for item in dataset:  # 🔹 iteracja po plikach
+                    file_name = item["file"]
+
+                    # liczymy crossing tylko dla tego pliku
+                    crossing_ranges_file, crossing_metrics_file = compute_crossings_summary([item])
+
+                    results_file = wyniki_crossings(
+                        dataset=[item],
+                        dataset_name=config_name,
+                        crossing_ranges=crossing_ranges_file,
+                        methods=METHODS_LIST
+                    )
+
+                    results_all_files.append(results_file)
+
+                # łączymy wyniki wszystkich plików w jeden słownik/listę
+                ALL_RESULTS[config_name] = results_all_files
+            # ---------- STATIC / NONE ----------
+            else:
+                results = wyniki(
+                    dataset=dataset,
+                    dataset_name=config_name,
+                    range_type=range_cfg["type"],
+                    peak_ranges_file=range_cfg.get("time"),
+                    peak_amps_file=range_cfg.get("amps"),
+                    range_name=range_name if range_cfg["type"] else None,
+                    methods=METHODS_LIST
+                )
+
+            ALL_RESULTS[config_name] = results
+
+
+# Filtrujemy tylko IT2
+it2_results = {k: v for k, v in ALL_RESULTS.items() if k.startswith("it2")}
+
+# Lista DataFrame'ów do połączenia
+dfs = []
+
+for config_name, (df_all, df_avg) in it2_results.items():
+    df = df_all.copy()
+    df["Config"] = config_name  # zapisujemy konfigurację
+    dfs.append(df)
+
+df_it2_all = pd.concat(dfs, ignore_index=True)
+
+peaks = ["P1","P2","P3"]
+classes = ["Class1","Class2","Class3","Class4"]
+
+best_configs = []
+
+for cls in classes:
+    for pk in peaks:
+        top_xy = top5_configs(df_it2_all, pk, cls, metric="Mean_XY_Error")
+        top_minxy = top5_configs(df_it2_all, pk, cls, metric="Min_XY_Error")
+        
+        best_configs.append({
+            "Class": cls,
+            "Peak": pk,
+            "Metric": "XY_Error",
+            "Top5": top_xy
+        })
+        best_configs.append({
+            "Class": cls,
+            "Peak": pk,
+            "Metric": "Min_XY_Error",
+            "Top5": top_minxy
+        })
+
+"""
+"""
 # ------------------ NORMAL, NO RANGES ------------------
 results_normal_no_ranges = wyniki(
     dataset=it1,
@@ -1031,35 +1241,9 @@ print(sum_diff)
 
 # print(sum_diff)
 
-
 """
-crossings, crossings_metrics = compute_crossings_summary(
-    [item for item in analyzed_data if item["class"] in ["Class1", "Class2", "Class3"]],
-    window_fast=2,
-    window_slow=4,
-    min_distance=0,
-    lookback=0,
-    max_crossings=6
-    ) 
+"""
 
-
-crossing_ranges = {}
-
-for cls, cls_crossings in crossings.items():
-    for i, crossings in enumerate(cls_crossings):
-        file_name = crossings["File"]
-        crossings_list = crossings["Crossings"]
-        peak_dict = {}
-        for peak_name in ["P1", "P2", "P3"]:
-            try:
-                start, end = get_peak_range_from_crossings(crossings_list, peak_name)
-                # peak_dict[peak_name] = (start, end)
-                if start is not None and end is not None:
-                    peak_dict[peak_name] = (start, end)
-
-            except ValueError:
-                continue  # np. brak P3 w Class4
-        crossing_ranges[file_name] = peak_dict
 
 # ---------------- stale zakresy ---------------------
 all_metrics = []

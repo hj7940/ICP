@@ -17,28 +17,49 @@ import math
 from scipy.signal import butter, filtfilt
 
 # %% ------- DANE -------------
-def load_data(base_path):
+def load_dataset(base_path, it_type):
+    """
+    Ładuje sygnały i piki dla IT1 lub IT2.
+    
+    Parameters
+    ----------
+    base_path : str
+        sciezka do glownego folderu z plikami danego zestawu
+    it_type : str 
+        "it1" lub "it2"
+        
+    Returns
+    -------
+    dataset : list
+        Lista zawierajaca elementy:
+            
+        - class : str (np. "Class1")
+        
+        - file : str (np. "Class1_example_0001")
+        
+        - signal: DataFrame (kolumny: Sample_no, ICP)
+        
+        - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
+    """
     dataset = []
-
+    file_pattern = "{class_name}_example_*.csv" if it_type == "it1" else "{class_name}_it2_example_*.csv"
+    peaks_suffix = "_peaks.csv" if it_type == "it1" else "_it2_peaks.csv"
+    
     for i in range(1, 5):
         class_name = f"Class{i}"
-
-        # peaks CSV
-        peaks_path = os.path.join(base_path, f"{class_name}_peaks.csv")
-        peaks_df = pd.read_csv(peaks_path)
-
-        # sygnały
-        folder = os.path.join(base_path, class_name)
-        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_example_*.csv")))
-
-        for f in csv_files:
+        peaks_path = os.path.join(base_path, f"{class_name}{peaks_suffix}") # sciezka do pliku z pikami
+        peaks_df = pd.read_csv(peaks_path) # wczytuje piki dla danej klasy
+        
+        folder = os.path.join(base_path, class_name) # sygnaly dla danej klasy
+        csv_files = sorted(glob.glob(os.path.join(folder, file_pattern.format(class_name=class_name))))
+        
+        for f in csv_files: # f to poszczegolne sygnaly
             signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0]
-
-            # znajdź wiersz z pikami
-            row = peaks_df[peaks_df["File"] == file_name]
-            if len(row) == 1:
-                row = row.iloc[0]
+            file_name = os.path.splitext(os.path.basename(f))[0] # zwraca tylko nazwe pliku bez rozszerzenia
+            
+            row = peaks_df[peaks_df["File"] == file_name]  # df zawierajacy wiersze dla ktorych File==file_name
+            if len(row) == 1: # spawdzenie czy DOKLADNIE JEDEN wiersz
+                row = row.iloc[0] # z data frame 2d do series 1d
                 peaks_ref = {
                     "P1": int(row["P1"]) if row["P1"] >= 0 else None,
                     "P2": int(row["P2"]) if row["P2"] >= 0 else None,
@@ -46,53 +67,14 @@ def load_data(base_path):
                 }
             else:
                 peaks_ref = {"P1": None, "P2": None, "P3": None}
-
+            
             dataset.append({
                 "class": class_name,
                 "file": file_name,
                 "signal": signal_df,
                 "peaks_ref": peaks_ref
             })
-
-    return dataset
-
-def load_data_it2(base_path):
-    dataset = []
-
-    for i in range(1, 5):
-        class_name = f"Class{i}"
-
-        # peaks CSV
-        peaks_path = os.path.join(base_path, f"{class_name}_it2_peaks.csv")
-        peaks_df = pd.read_csv(peaks_path)
-
-        # sygnały
-        folder = os.path.join(base_path, class_name)
-        csv_files = sorted(glob.glob(os.path.join(folder, f"{class_name}_it2_example_*.csv")))
-
-        for f in csv_files:
-            signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0]
-
-            # znajdź wiersz z pikami
-            row = peaks_df[peaks_df["File"] == file_name]
-            if len(row) == 1:
-                row = row.iloc[0]
-                peaks_ref = {
-                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
-                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
-                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
-                }
-            else:
-                peaks_ref = {"P1": None, "P2": None, "P3": None}
-
-            dataset.append({
-                "class": class_name,
-                "file": file_name,
-                "signal": signal_df,
-                "peaks_ref": peaks_ref
-            })
-
+    
     return dataset
 
 # %% ------- PRZYGOTOWANIE --------
@@ -100,7 +82,7 @@ def smooth_butter(x, cutoff=1, fs=100, order=3):
     b, a = butter(order, cutoff / (fs / 2), btype='low')
     return filtfilt(b, a, x)
 
-def smooth_dataset(dataset, inplace=False, classes=None, **kwargs):
+def smooth_dataset(dataset, inplace=False, classes=None, cutoff=4, **kwargs):
     """
     Wygładza wszystkie sygnały w dataset.
 
@@ -148,7 +130,7 @@ def smooth_dataset(dataset, inplace=False, classes=None, **kwargs):
         x = sig_df.iloc[:, 1].values
 
 
-        cutoff = kwargs.get("cutoff", 4.0)
+        #cutoff = kwargs.get("cutoff", 4.0)
         fs = kwargs.get("fs", 100.0)
         order = kwargs.get("order", 3)
         # filtfilt zachowuje fazę (zero-phase)
@@ -168,17 +150,32 @@ def smooth_dataset(dataset, inplace=False, classes=None, **kwargs):
 
 # %% -------- DETEKCJA --------
 
-def compute_crossings_summary(dataset, window_fast=2, window_slow=4,
-                              min_distance=15, lookback=0,
-                              max_crossings=6):
+def compute_crossings(dataset, window_fast=2, window_slow=4,
+                              min_distance=0, max_crossings=6):
     """
-    Liczy MA crossingi dla wszystkich sygnałów w dataset.
-    Zwraca:
-        - crossings_by_class: dict z listą crossingów dla każdego sygnału
-        - summary_df: DataFrame z liczbą crossingów w każdej klasie i parametrami
+    Wyznacza pukty przeciecia sredniej ruchomej wolnej i sredniej ruchomej szybkiej
+    
+    Parameters
+    ----------
+    dataset : list
+        zestaw danych
+    window_fast : int 
+        liczba probek wliczana do szybkiej sredniej ruchomej
+    widow_slow : int
+        liczba probek wliczana do wolnej sredniej ruchomej
+    min_distance : int
+        minimalna odleglosc od poprzedniego punktu przeciecia
+    max_crossings :
+        liczba po ktorej zatrzymuje sie wykrywanie p. przeciecia (domyslnie 6)
+        
+    Returns
+    ------
+    cross : dict
+        Klucz - nazwa klasy (np. "Class1"), wartosc - slownik zawierajacy nazwe pliku (
+            np. Class1_it2_example_0001) oraz liste p. przeciecia (int)
+    
     """
     crossings_by_class = {}
-    summary_rows = []
 
     classes = sorted({item["class"] for item in dataset})
     for cls in classes:
@@ -196,7 +193,6 @@ def compute_crossings_summary(dataset, window_fast=2, window_slow=4,
         items = [item for item in dataset if item["class"] == cls]
         cls_threshold = amp_thresholds.get(cls, 0.0)
         
-        num_signals = len(items)
         n_crossings_list = []
         
         for item in items:
@@ -225,7 +221,6 @@ def compute_crossings_summary(dataset, window_fast=2, window_slow=4,
                             # za mała amplituda -> odrzucamy
                             continue
                         
-                    # start = max(0, i - lookback)
                     crossings.append(i)
                     last_cross = i
                     kept_count += 1
@@ -238,14 +233,44 @@ def compute_crossings_summary(dataset, window_fast=2, window_slow=4,
                 "Crossings": crossings
             })
             n_crossings_list.append(len(crossings))
-            # total_crossings += len(crossings)
-            # avg_crossings = total_crossings / num_signals if num_signals > 0 else 0
+        
+    return crossings_by_class
+
+def compute_crossings_summary(dataset, crossings_by_class, window_fast=2, window_slow=4,
+                              min_distance=0):
+    """
+    Generuje podsumowanie liczby punktów przecięcia dla każdej klasy.
+
+    Parameters
+    ----------
+    dataset : list
+        zestaw danych
+    crossings_by_class : dict
+        wynik funkcji compute_crossings_by_class
+    window_fast : int
+        liczba próbek dla szybkiej średniej
+    window_slow : int
+        liczba próbek dla wolnej średniej
+    min_distance : int
+        minimalna odległość między punktami przecięcia
+
+    Returns
+    -------
+    summary_df : pd.DataFrame
+        Podsumowanie dla każdej klasy z liczbą sygnałów i statystykami punktów przecięcia
+    """
+    summary_rows = []
+    classes = sorted({item["class"] for item in dataset})
+    
+    for cls in classes:
+        items = [item for item in dataset if item["class"] == cls]
+        num_signals = len(items)
+        n_crossings_list = [len(cross["Crossings"]) for cross in crossings_by_class.get(cls, [])]
         
         avg_crossings = np.mean(n_crossings_list) if n_crossings_list else 0
         min_crossings = np.min(n_crossings_list) if n_crossings_list else 0
         max_crossings = np.max(n_crossings_list) if n_crossings_list else 0
         
-        # podsumowanie dla klasy
         summary_rows.append({
             "Class": cls,
             "Num_Signals": num_signals,
@@ -255,11 +280,10 @@ def compute_crossings_summary(dataset, window_fast=2, window_slow=4,
             "window_fast": window_fast,
             "window_slow": window_slow,
             "min_distance": min_distance,
-            "lookback": lookback
         })
-
+    
     summary_df = pd.DataFrame(summary_rows)
-    return crossings_by_class, summary_df
+    return summary_df
 
 
 # %% ------ METRYKI --------
@@ -867,54 +891,57 @@ def plot_all_signals_class_with_peaks_and_crossings(
 
 
 # %% ------------ EXECUTION --------------
-base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
-data_crude = load_data(base_path)
-data = smooth_dataset(data_crude)
 
-base_path_2 = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\CSV_selected_RENAMED_IT2"
-data2_crude = load_data_it2(base_path_2)
-data2 = smooth_dataset(data2_crude)
-
-pd.options.display.float_format = '{:.4f}'.format
-
-
-
-cross, summary = compute_crossings_summary(
-    data2,
-    window_fast=2,
-    window_slow=4,
-    min_distance=0,
-    lookback=0,
-    max_crossings=6
-)
-
-
-# Użycie:
-df_six_cross = percent_signals_with_six_crossings_and_peaks(data2, cross)
-print(df_six_cross)
-# print(summary)
-
-# plot_crossings_overview(data, cross, mode="lines")
-# plot_crossings_overview(data, cross, mode="hist")
-
-# plot_crossings_single_signal(data, cross, "Class2", 122, 
-#                             window_fast=2, window_slow=4, show_lines=True, show_points=True)
-
-
-# min_distances = [20, 25, 30, 40, 50]
-# summary_df = sweep_min_distance_all_classes(data, min_distances)
-# print(summary_df)
-
-# plot_all_signals_class_with_peaks(data, "Class1")
-
-#plot_signals_with_n_crossings(data, cross, n_crossings=5, classes_to_plot=[4])
-
-# rysowanie tylko fragmentu sygnału od indeksu 50 do 150
-# plot_all_signals_class_with_peaks_and_crossings(data, cross, "Class2",
-#                                                  start_idx=40, end_idx=50)
-
-# metrics = evaluate_peak_crossing_alignment(data, cross, tolerance=0)
-# print(metrics)
-
-
-# print("Kolejny sukces")
+if __name__ == "__main__":
+    
+    base_path = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1"
+    data_crude = load_dataset(base_path, "it1")
+    data = smooth_dataset(data_crude)
+    
+    base_path_2 = r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it2"
+    data2_crude = load_dataset(base_path_2, "it2")
+    data2 = smooth_dataset(data2_crude)
+    
+    pd.options.display.float_format = '{:.4f}'.format
+    
+    
+    
+    cross = compute_crossings(
+        data2,
+        window_fast=2,
+        window_slow=4,
+        min_distance=0,
+        max_crossings=6
+    )
+    
+    summary_df = compute_crossings_summary(data2, cross, window_fast=2, window_slow=4)
+    
+    # Użycie:
+    df_six_cross = percent_signals_with_six_crossings_and_peaks(data2, cross)
+    print(df_six_cross)
+    # print(summary)
+    
+    # plot_crossings_overview(data, cross, mode="lines")
+    # plot_crossings_overview(data, cross, mode="hist")
+    
+    # plot_crossings_single_signal(data, cross, "Class2", 122, 
+    #                             window_fast=2, window_slow=4, show_lines=True, show_points=True)
+    
+    
+    # min_distances = [20, 25, 30, 40, 50]
+    # summary_df = sweep_min_distance_all_classes(data, min_distances)
+    # print(summary_df)
+    
+    # plot_all_signals_class_with_peaks(data, "Class1")
+    
+    #plot_signals_with_n_crossings(data, cross, n_crossings=5, classes_to_plot=[4])
+    
+    # rysowanie tylko fragmentu sygnału od indeksu 50 do 150
+    # plot_all_signals_class_with_peaks_and_crossings(data, cross, "Class2",
+    #                                                  start_idx=40, end_idx=50)
+    
+    # metrics = evaluate_peak_crossing_alignment(data, cross, tolerance=0)
+    # print(metrics)
+    
+    
+    # print("Kolejny sukces")
