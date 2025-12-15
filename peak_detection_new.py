@@ -8,71 +8,11 @@ from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 import itertools
 import time
 from moving_average import compute_crossings, smooth_dataset
+from data_handling import load_dataset
 from functools import reduce
 
 pd.options.display.float_format = '{:.4f}'.format
 
-# %% ------- DANE -------------
-
-def load_dataset(base_path, it_type):
-    """
-    Ładuje sygnały i piki dla IT1 lub IT2.
-    
-    Parameters
-    ----------
-    base_path : str
-        sciezka do glownego folderu z plikami danego zestawu
-    it_type : str 
-        "it1" lub "it2"
-        
-    Returns
-    -------
-    dataset : list
-        Lista zawierajaca elementy:
-            
-        - class : str (np. "Class1")
-        
-        - file : str (np. "Class1_example_0001")
-        
-        - signal: DataFrame (kolumny: Sample_no, ICP)
-        
-        - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
-    """
-    dataset = []
-    file_pattern = "{class_name}_example_*.csv" if it_type == "it1" else "{class_name}_it2_example_*.csv"
-    peaks_suffix = "_peaks.csv" if it_type == "it1" else "_it2_peaks.csv"
-    
-    for i in range(1, 5):
-        class_name = f"Class{i}"
-        peaks_path = os.path.join(base_path, f"{class_name}{peaks_suffix}") # sciezka do pliku z pikami
-        peaks_df = pd.read_csv(peaks_path) # wczytuje piki dla danej klasy
-        
-        folder = os.path.join(base_path, class_name) # sygnaly dla danej klasy
-        csv_files = sorted(glob.glob(os.path.join(folder, file_pattern.format(class_name=class_name))))
-        
-        for f in csv_files: # f to poszczegolne sygnaly
-            signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0] # zwraca tylko nazwe pliku bez rozszerzenia
-            
-            row = peaks_df[peaks_df["File"] == file_name]  # df zawierajacy wiersze dla ktorych File==file_name
-            if len(row) == 1: # spawdzenie czy DOKLADNIE JEDEN wiersz
-                row = row.iloc[0] # z data frame 2d do series 1d
-                peaks_ref = {
-                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
-                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
-                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
-                }
-            else:
-                peaks_ref = {"P1": None, "P2": None, "P3": None}
-            
-            dataset.append({
-                "class": class_name,
-                "file": file_name,
-                "signal": signal_df,
-                "peaks_ref": peaks_ref
-            })
-    
-    return dataset
 
 
 def wyniki(
@@ -940,7 +880,6 @@ RANGES = {
     },
     "crossings": {
         "type": "crossing",
-        "time": time_crossings
     }
 }
 

@@ -6,28 +6,28 @@ sprawdzenie rozkladu normalnego
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import glob
 import os
 from scipy.stats import shapiro, anderson, kstest
+from upload_data import load_dataset, load_metadata
 
-def load_data(base_path, n_classes=4):
-    """
-    Wczytuje pliki CSV i pliki z pikami dla wszystkich klas.
-    Zwraca słownik z DataFrame’ami i listami sygnałów.
-    """
-    data = {}
-    for i in range(1, n_classes + 1):
-        # plik z pikami
-        peaks_path = os.path.join(base_path, f"Class{i}_peaks.csv")
-        data[f"Class{i}_peaks"] = pd.read_csv(peaks_path)
+# def load_data(base_path, n_classes=4):
+#     """
+#     Wczytuje pliki CSV i pliki z pikami dla wszystkich klas.
+#     Zwraca słownik z DataFrame’ami i listami sygnałów.
+#     """
+#     data = {}
+#     for i in range(1, n_classes + 1):
+#         # plik z pikami
+#         peaks_path = os.path.join(base_path, f"Class{i}_peaks.csv")
+#         data[f"Class{i}_peaks"] = pd.read_csv(peaks_path)
 
-        # folder z sygnałami
-        folder = os.path.join(base_path, f"Class{i}")
-        csv_files = sorted(glob.glob(os.path.join(folder, f"Class{i}_example_*.csv")))
-        data[f"Class{i}_files"] = csv_files
-        data[f"Class{i}_signals"] = [pd.read_csv(f) for f in csv_files]
+#         # folder z sygnałami
+#         folder = os.path.join(base_path, f"Class{i}")
+#         csv_files = sorted(glob.glob(os.path.join(folder, f"Class{i}_example_*.csv")))
+#         data[f"Class{i}_files"] = csv_files
+#         data[f"Class{i}_signals"] = [pd.read_csv(f) for f in csv_files]
 
-    return data
+#     return data
 
 def compute_statistics_raw(data):
     """
@@ -368,9 +368,8 @@ def generate_violinplots(df, output_folder):
     # plt.savefig(os.path.join(output_folder, "violinplots_all_classes.png"))
     # plt.close()
                   
-data = load_data(r"C:\Users\User\OneDrive\Dokumenty\praca inżynierska\ICP_pulses_it1")
+data = load_dataset(r"ICP_pulses_it1", "it1")
 
-df_raw = compute_statistics_raw(data)
 
 # test_results_df =run_all_normality_tests(df_raw)
 # df_raw.to_csv("all_raw_values.csv", index=False)

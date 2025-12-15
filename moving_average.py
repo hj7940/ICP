@@ -6,146 +6,13 @@ Created on Mon Dec  1 01:08:05 2025
 """
 import pandas as pd
 import numpy as np
-import os
-import glob
 import matplotlib.pyplot as plt
 # import glob
 # import os
 # from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 # import itertools
 import math
-from scipy.signal import butter, filtfilt
-
-# %% ------- DANE -------------
-def load_dataset(base_path, it_type):
-    """
-    Ładuje sygnały i piki dla IT1 lub IT2.
-    
-    Parameters
-    ----------
-    base_path : str
-        sciezka do glownego folderu z plikami danego zestawu
-    it_type : str 
-        "it1" lub "it2"
-        
-    Returns
-    -------
-    dataset : list
-        Lista zawierajaca elementy:
-            
-        - class : str (np. "Class1")
-        
-        - file : str (np. "Class1_example_0001")
-        
-        - signal: DataFrame (kolumny: Sample_no, ICP)
-        
-        - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
-    """
-    dataset = []
-    file_pattern = "{class_name}_example_*.csv" if it_type == "it1" else "{class_name}_it2_example_*.csv"
-    peaks_suffix = "_peaks.csv" if it_type == "it1" else "_it2_peaks.csv"
-    
-    for i in range(1, 5):
-        class_name = f"Class{i}"
-        peaks_path = os.path.join(base_path, f"{class_name}{peaks_suffix}") # sciezka do pliku z pikami
-        peaks_df = pd.read_csv(peaks_path) # wczytuje piki dla danej klasy
-        
-        folder = os.path.join(base_path, class_name) # sygnaly dla danej klasy
-        csv_files = sorted(glob.glob(os.path.join(folder, file_pattern.format(class_name=class_name))))
-        
-        for f in csv_files: # f to poszczegolne sygnaly
-            signal_df = pd.read_csv(f)
-            file_name = os.path.splitext(os.path.basename(f))[0] # zwraca tylko nazwe pliku bez rozszerzenia
-            
-            row = peaks_df[peaks_df["File"] == file_name]  # df zawierajacy wiersze dla ktorych File==file_name
-            if len(row) == 1: # spawdzenie czy DOKLADNIE JEDEN wiersz
-                row = row.iloc[0] # z data frame 2d do series 1d
-                peaks_ref = {
-                    "P1": int(row["P1"]) if row["P1"] >= 0 else None,
-                    "P2": int(row["P2"]) if row["P2"] >= 0 else None,
-                    "P3": int(row["P3"]) if row["P3"] >= 0 else None,
-                }
-            else:
-                peaks_ref = {"P1": None, "P2": None, "P3": None}
-            
-            dataset.append({
-                "class": class_name,
-                "file": file_name,
-                "signal": signal_df,
-                "peaks_ref": peaks_ref
-            })
-    
-    return dataset
-
-# %% ------- PRZYGOTOWANIE --------
-def smooth_butter(x, cutoff=1, fs=100, order=3):
-    b, a = butter(order, cutoff / (fs / 2), btype='low')
-    return filtfilt(b, a, x)
-
-def smooth_dataset(dataset, inplace=False, classes=None, cutoff=4, **kwargs):
-    """
-    Wygładza wszystkie sygnały w dataset.
-
-    Parameters
-    ----------
-    dataset : list
-        wynik load_data()
-    inplace : bool
-        jeśli True — modyfikuje przekazany dataset, else zwraca kopię
-    classes : list or None
-        lista klas do wygładzenia, np. ['Class1','Class2']; None -> wszystkie
-    kwargs : dodatkowe parametry w zależności od metody:
-        - savgol: window (int, odd), poly (int)
-        - ma: window (int)  (centered moving average)
-        - butter: cutoff (Hz), fs (Hz), order (int)
-        - median: kernel (int, odd)
-    Returns
-    -------
-    dataset_out : list
-        wygładzony dataset (jeśli inplace=False). Jeśli inplace=True zwraca None.
-    """
-    if inplace:
-        ds = dataset
-    else:
-        # Tworzymy nową listę słowników z kopiami DataFrame
-        ds = []
-        for item in dataset:
-            ds.append({
-                "class": item["class"],
-                "file": item["file"],
-                "signal": item["signal"].copy(),  # kopia DataFrame
-                "peaks_ref": item["peaks_ref"].copy() if item.get("peaks_ref") else None
-            })
-
-    
-
-    target_classes = set(classes) if classes is not None else None
-
-    for item in ds:
-        cls = item["class"]
-        if target_classes is not None and cls not in target_classes:
-            continue
-
-        sig_df = item["signal"]
-        x = sig_df.iloc[:, 1].values
-
-
-        #cutoff = kwargs.get("cutoff", 4.0)
-        fs = kwargs.get("fs", 100.0)
-        order = kwargs.get("order", 3)
-        # filtfilt zachowuje fazę (zero-phase)
-        x_s = smooth_butter(x, cutoff=cutoff, fs=fs, order=order)
-
-
-        # podstawiamy wygładzony sygnał z powrotem do DataFrame (zachowujemy kolumnę czasu)
-        # sig_df_s = sig_df.copy()
-        sig_df.iloc[:, 1] = x_s
-        # item["signal"] = sig_df_s
-
-    if inplace:
-        return None
-    else:
-        return ds
+from data_handling import load_dataset, smooth_dataset
 
 
 # %% -------- DETEKCJA --------
@@ -178,8 +45,8 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
     crossings_by_class = {}
 
     classes = sorted({item["class"] for item in dataset})
-    for cls in classes:
-        crossings_by_class[cls] = []
+    for class_id in classes:
+        crossings_by_class[class_id] = []
     
     amp_thresholds = {
         "Class1": 0.40,
@@ -188,10 +55,10 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
         "Class4": 0.40,
     }
 
-    for cls in classes:
+    for class_id in classes:
         
-        items = [item for item in dataset if item["class"] == cls]
-        cls_threshold = amp_thresholds.get(cls, 0.0)
+        items = [item for item in dataset if item["class"] == class_id]
+        class_id_threshold = amp_thresholds.get(class_id, 0.0)
         
         n_crossings_list = []
         
@@ -214,7 +81,7 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
                     amp = sig[i]
                     
                     if not found_first_valid:
-                        if amp >= cls_threshold:
+                        if amp >= class_id_threshold:
                             # pierwszy crossing spełniający próg
                             found_first_valid = True
                         else:
@@ -228,7 +95,7 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
                     if kept_count >= max_crossings:
                         break
 
-            crossings_by_class[cls].append({
+            crossings_by_class[class_id].append({
                 "File": item["file"],
                 "Crossings": crossings
             })
@@ -262,17 +129,17 @@ def compute_crossings_summary(dataset, crossings_by_class, window_fast=2, window
     summary_rows = []
     classes = sorted({item["class"] for item in dataset})
     
-    for cls in classes:
-        items = [item for item in dataset if item["class"] == cls]
+    for class_id in classes:
+        items = [item for item in dataset if item["class"] == class_id]
         num_signals = len(items)
-        n_crossings_list = [len(cross["Crossings"]) for cross in crossings_by_class.get(cls, [])]
+        n_crossings_list = [len(cross["Crossings"]) for cross in crossings_by_class.get(class_id, [])]
         
         avg_crossings = np.mean(n_crossings_list) if n_crossings_list else 0
         min_crossings = np.min(n_crossings_list) if n_crossings_list else 0
         max_crossings = np.max(n_crossings_list) if n_crossings_list else 0
         
         summary_rows.append({
-            "Class": cls,
+            "Class": class_id,
             "Num_Signals": num_signals,
             "Avg_Crossings": avg_crossings,
             "Min_Crossings": min_crossings,
@@ -306,8 +173,8 @@ def evaluate_peak_crossing_alignment(dataset, crossings_by_class,
     classes = sorted(crossings_by_class.keys())
     summary = []
 
-    for cls in classes:
-        items = [item for item in dataset if item["class"] == cls]
+    for class_id in classes:
+        items = [item for item in dataset if item["class"] == class_id]
 
         total = 0
         correct_P1 = 0
@@ -318,7 +185,7 @@ def evaluate_peak_crossing_alignment(dataset, crossings_by_class,
             total += 1
             fname = item["file"]
 
-            entry = next(e for e in crossings_by_class[cls] if e["File"] == fname)
+            entry = next(e for e in crossings_by_class[class_id] if e["File"] == fname)
             crossings = entry["Crossings"]
 
             # potrzebujemy co najmniej 6 crossingów
@@ -354,7 +221,7 @@ def evaluate_peak_crossing_alignment(dataset, crossings_by_class,
                             correct_P3 += 1
 
         summary.append({
-            "Class": cls,
+            "Class": class_id,
             "Total Signals": total,
             "P1 inside (1-2)%": 100 * correct_P1 / total if total else 0,
             "P2 inside (3-4)%": 100 * correct_P2 / total if total else 0,
@@ -377,11 +244,11 @@ def percent_signals_with_six_crossings_and_peaks(dataset, crossings_by_class, to
         "P3": (5, 6)
     }
 
-    for cls, entries in crossings_by_class.items():
+    for class_id, entries in crossings_by_class.items():
         total = len(entries)
         if total == 0:
             result.append({
-                "Class": cls,
+                "Class": class_id,
                 "Total Signals": 0,
                 "Signals with 6 crossings": 0,
                 "Signals with 6 crossings & correct P1-P3": 0,
@@ -393,7 +260,7 @@ def percent_signals_with_six_crossings_and_peaks(dataset, crossings_by_class, to
         six_cross_signals = []
         correct_peaks_count = 0
 
-        items_cls = [item for item in dataset if item["class"] == cls]
+        items_class_id = [item for item in dataset if item["class"] == class_id]
 
         for entry in entries:
             crossings = entry["Crossings"]
@@ -403,7 +270,7 @@ def percent_signals_with_six_crossings_and_peaks(dataset, crossings_by_class, to
                 six_cross_signals.append(entry)
 
                 # znajdź odpowiadający sygnał w dataset
-                item = next(item for item in items_cls if item["file"] == file_name)
+                item = next(item for item in items_class_id if item["file"] == file_name)
                 peaks = item.get("peaks_ref", {})
 
                 correct = True
@@ -426,7 +293,7 @@ def percent_signals_with_six_crossings_and_peaks(dataset, crossings_by_class, to
         percent_correct_peaks = 100 * correct_peaks_count / total if total else 0
 
         result.append({
-            "Class": cls,
+            "Class": class_id,
             "Total Signals": total,
             "Signals with 6 crossings": total_six_cross,
             "Signals with 6 crossings & correct P1-P3": correct_peaks_count,
@@ -447,8 +314,8 @@ def plot_crossings_overview(dataset, crossings_by_class, mode="lines",
 
     classes = sorted(crossings_by_class.keys())
 
-    for ax, cls in zip(axes, classes):
-        items = [item for item in dataset if item["class"] == cls]
+    for ax, class_id in zip(axes, classes):
+        items = [item for item in dataset if item["class"] == class_id]
         if not items:
             ax.set_visible(False)
             continue
@@ -461,7 +328,7 @@ def plot_crossings_overview(dataset, crossings_by_class, mode="lines",
             x = item["signal"].iloc[:, 1].values
             ax.plot(t, x, color="black", alpha=0.07)
             all_x.append(x)
-        entries = crossings_by_class[cls]
+        entries = crossings_by_class[class_id]
         
         # --- średnia krzywa fali ICP ---
         mean_signal = np.mean(all_x, axis=0)
@@ -484,27 +351,27 @@ def plot_crossings_overview(dataset, crossings_by_class, mode="lines",
                 ax2.hist(times, bins=hist_bins, alpha=0.35, color="red")
                 ax2.set_ylabel("Cross count")
 
-        ax.set_title(cls)
+        ax.set_title(class_id)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()
 
     
-def plot_crossings_single_signal(dataset, crossings_by_class, cls, idx,
+def plot_crossings_single_signal(dataset, crossings_by_class, class_id, idx,
                                       window_fast=2, window_slow=3,
                                       show_lines=True, show_points=True):
 
     """
-    Rysuje sygnał z klasy `cls` o indeksie `idx` wraz z:
+    Rysuje sygnał z klasy `class_id` o indeksie `idx` wraz z:
         - fast i slow średnimi ruchomymi
         - wykrytymi crossingami MA
     """
 
     # wybór sygnału z danej klasy
-    items = [item for item in dataset if item["class"] == cls]
+    items = [item for item in dataset if item["class"] == class_id]
     if idx >= len(items):
-        raise IndexError(f"Klasa {cls} ma tylko {len(items)} sygnałów")
+        raise IndexError(f"Klasa {class_id} ma tylko {len(items)} sygnałów")
 
     item = items[idx]
     t = item["signal"].iloc[:, 0].values
@@ -516,7 +383,7 @@ def plot_crossings_single_signal(dataset, crossings_by_class, cls, idx,
     xs = pd.Series(x).rolling(window_slow, min_periods=1).mean().to_numpy()
 
     # znajdź odpowiadający wpis crossingów
-    class_entries = crossings_by_class[cls]
+    class_entries = crossings_by_class[class_id]
     entry = next(e for e in class_entries if e["File"] == file_name)
     crossings = entry["Crossings"]
 
@@ -534,7 +401,7 @@ def plot_crossings_single_signal(dataset, crossings_by_class, cls, idx,
         for end in crossings:
             plt.scatter(t[end], x[end], color="red", s=50, zorder=5)
 
-    #plt.title(f"{cls} — {file_name} — {len(crossings)} crossings")
+    #plt.title(f"{class_id} — {file_name} — {len(crossings)} crossings")
     plt.xlabel("Numer próbki")
     plt.ylabel("Amplituda")
     plt.legend()
@@ -556,8 +423,8 @@ def sweep_min_distance_all_classes(dataset, min_distance_values,
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     axes = axes.flatten()
 
-    for ax, cls in zip(axes, classes):
-        items = [item for item in dataset if item["class"] == cls]
+    for ax, class_id in zip(axes, classes):
+        items = [item for item in dataset if item["class"] == class_id]
         # num_signals = len(items)
 
         min_list, max_list, avg_list = [], [], []
@@ -593,7 +460,7 @@ def sweep_min_distance_all_classes(dataset, min_distance_values,
 
             # zapis do DataFrame
             summary_rows.append({
-                "Class": cls,
+                "Class": class_id,
                 "min_distance": min_dist,
                 "Min_Crossings": min_c,
                 "Max_Crossings": max_c,
@@ -607,7 +474,7 @@ def sweep_min_distance_all_classes(dataset, min_distance_values,
         ax.plot(min_distance_values, min_list, 'o-', label="Min crossings")
         ax.plot(min_distance_values, max_list, 's-', label="Max crossings")
         ax.plot(min_distance_values, avg_list, '^-', label="Avg crossings")
-        ax.set_title(cls)
+        ax.set_title(class_id)
         ax.set_xlabel("min_distance")
         ax.set_ylabel("Liczba crossingów")
         ax.grid(True, alpha=0.3)
@@ -620,16 +487,16 @@ def sweep_min_distance_all_classes(dataset, min_distance_values,
     return summary_df
 
 
-def plot_all_signals_class_with_peaks(dataset, cls, peak_colors={"P1":"green","P2":"orange","P3":"red"}):
+def plot_all_signals_class_with_peaks(dataset, class_id, peak_colors={"P1":"green","P2":"orange","P3":"red"}):
     """
     Rysuje wszystkie sygnały z danej klasy w osobnych subplotach.
     Każdy sygnał ma zaznaczone referencyjne piki P1/P2/P3.
     """
-    items = [item for item in dataset if item["class"] == cls]
+    items = [item for item in dataset if item["class"] == class_id]
     n_signals = len(items)
     
     if n_signals == 0:
-        print(f"Brak sygnałów dla klasy {cls}")
+        print(f"Brak sygnałów dla klasy {class_id}")
         return
 
     # --- ustawienia siatki ---
@@ -657,7 +524,7 @@ def plot_all_signals_class_with_peaks(dataset, cls, peak_colors={"P1":"green","P
     for j in range(i+1, len(axes)):
         axes[j].set_visible(False)
 
-    fig.suptitle(f"Klasa {cls} – wszystkie sygnały z pikami referencyjnymi", fontsize=16)
+    fig.suptitle(f"Klasa {class_id} – wszystkie sygnały z pikami referencyjnymi", fontsize=16)
     plt.tight_layout()
     plt.show()
 
@@ -687,19 +554,19 @@ def plot_signals_with_n_crossings(dataset, crossings_by_class, n_crossings=1, cl
     import math
     classes_to_plot = [f"Class{i}" for i in classes_to_plot]
 
-    for cls in classes_to_plot:
-        items = [item for item in dataset if item["class"] == cls]
+    for class_id in classes_to_plot:
+        items = [item for item in dataset if item["class"] == class_id]
 
         # filtrowanie sygnałów z dokładnie n_crossings
         selected_items = []
         for item in items:
-            entry = next(e for e in crossings_by_class[cls] if e["File"] == item["file"])
+            entry = next(e for e in crossings_by_class[class_id] if e["File"] == item["file"])
             if len(entry["Crossings"]) == n_crossings:
                 selected_items.append((item, entry["Crossings"]))
 
         n_signals = len(selected_items)
         if n_signals == 0:
-            print(f"Klasa {cls}: brak sygnałów z dokładnie {n_crossings} crossingami")
+            print(f"Klasa {class_id}: brak sygnałów z dokładnie {n_crossings} crossingami")
             continue
 
         # ustawienia subplotów
@@ -734,12 +601,12 @@ def plot_signals_with_n_crossings(dataset, crossings_by_class, n_crossings=1, cl
         for j in range(i+1, len(axes)):
             axes[j].set_visible(False)
 
-        fig.suptitle(f"Klasa {cls} — sygnały z {n_crossings} crossingami", fontsize=16)
+        fig.suptitle(f"Klasa {class_id} — sygnały z {n_crossings} crossingami", fontsize=16)
         plt.tight_layout()
         plt.show()
 
 
-# def plot_all_signals_class_with_peaks_and_crossings(dataset, crossings_by_class, cls,
+# def plot_all_signals_class_with_peaks_and_crossings(dataset, crossings_by_class, class_id,
 #                                                     peak_colors={"P1":"green","P2":"orange","P3":"black"},
 #                                                     crossing_color="red",
 #                                                     start_idx=None, end_idx=None):
@@ -750,11 +617,11 @@ def plot_signals_with_n_crossings(dataset, crossings_by_class, n_crossings=1, cl
 #       • MA-crossingi (normalne)
 #     """
 
-#     items = [item for item in dataset if item["class"] == cls]
+#     items = [item for item in dataset if item["class"] == class_id]
 #     n_signals = len(items)
 
 #     if n_signals == 0:
-#         print(f"Brak sygnałów dla klasy {cls}")
+#         print(f"Brak sygnałów dla klasy {class_id}")
 #         return
 
 #     # Ustawienia subplotów
@@ -790,7 +657,7 @@ def plot_signals_with_n_crossings(dataset, crossings_by_class, n_crossings=1, cl
 
 #         # ===== Crossing =====
 #         file_name = item["file"]
-#         entry = next(e for e in crossings_by_class[cls] if e["File"] == file_name)
+#         entry = next(e for e in crossings_by_class[class_id] if e["File"] == file_name)
 #         crossings = entry["Crossings"]
 
 #         for start, end in crossings:
@@ -805,13 +672,13 @@ def plot_signals_with_n_crossings(dataset, crossings_by_class, n_crossings=1, cl
 #     for j in range(i + 1, len(axes)):
 #         axes[j].set_visible(False)
 
-#     fig.suptitle(f"Klasa {cls} — sygnały z pikami i crossingami (zakres indeksów)",
+#     fig.suptitle(f"Klasa {class_id} — sygnały z pikami i crossingami (zakres indeksów)",
 #                  fontsize=16)
 #     plt.tight_layout()
 #     plt.show()
 
 def plot_all_signals_class_with_peaks_and_crossings(
-        dataset, crossings_by_class, cls,
+        dataset, crossings_by_class, class_id,
         peak_colors={"P1":"green","P2":"orange","P3":"black"},
         crossing_color="red",
         start_idx=None, end_idx=None):
@@ -826,10 +693,10 @@ def plot_all_signals_class_with_peaks_and_crossings(
     import math
 
     # Pobranie sygnałów klasy
-    items_all = [item for item in dataset if item["class"] == cls]
+    items_all = [item for item in dataset if item["class"] == class_id]
 
     if len(items_all) == 0:
-        print(f"Brak sygnałów dla klasy {cls}")
+        print(f"Brak sygnałów dla klasy {class_id}")
         return
 
     # --- tu zmiana! --- WYBIERAMY SYGNAŁY, nie zakres próbek
@@ -867,7 +734,7 @@ def plot_all_signals_class_with_peaks_and_crossings(
                         markersize=6)
 
         # ----- crossingi -----
-        entry = next(e for e in crossings_by_class[cls] 
+        entry = next(e for e in crossings_by_class[class_id] 
                      if e["File"] == item["file"])
 
         for end in entry["Crossings"]:
@@ -882,7 +749,7 @@ def plot_all_signals_class_with_peaks_and_crossings(
         axes[j].set_visible(False)
 
     fig.suptitle(
-        f"Klasa {cls} — sygnały {s} do {e} z pikami i crossingami",
+        f"Klasa {class_id} — sygnały {s} do {e} z pikami i crossingami",
         fontsize=16
     )
     plt.tight_layout()
@@ -936,9 +803,9 @@ if __name__ == "__main__":
     
     #plot_signals_with_n_crossings(data, cross, n_crossings=5, classes_to_plot=[4])
     
-    # rysowanie tylko fragmentu sygnału od indeksu 50 do 150
-    # plot_all_signals_class_with_peaks_and_crossings(data, cross, "Class2",
-    #                                                  start_idx=40, end_idx=50)
+    #rysowanie tylko fragmentu sygnału od indeksu 50 do 150
+    plot_all_signals_class_with_peaks_and_crossings(data, cross, "Class1",
+                                                     start_idx=45, end_idx=50)
     
     # metrics = evaluate_peak_crossing_alignment(data, cross, tolerance=0)
     # print(metrics)
