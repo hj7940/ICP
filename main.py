@@ -127,7 +127,7 @@ def compute_ranges_avg(dataset):
 
     return merged
 
-# DO SPRAWDZENIA!!!!!!!! CZAT
+# DO SPRAWDZENIA!!!!!!!! CZAT chyba dziala tbf
 def compute_peak_metrics(detection_results, peak_name, class_name):
     metrics_list = []
     class_signals = [item for item in detection_results if item["class"] == class_name]
@@ -188,7 +188,12 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
 # Z CZATU!!!!!!! DO SPRAWDZENIA
 def process_all_datasets(datasets, df_ranges_time, df_ranges_amps, 
                          peaks=("P1","P2","P3")):
+    
+    all_results = {}
+    #all_metrics_list = []
+    
     for dataset, dataset_name in datasets:
+        
         # lista zakresów do przetwarzania
         # range_keys = list(ranges_time.get(dataset_name, {}).keys()) + ["none"]  # "none" na koniec
         
@@ -206,6 +211,7 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
         range_keys = list(df_ranges_time.columns) + ["none"]
         
         for range_name in range_keys:
+            print(f"==={dataset_name}_{range_name if range_name is not None else 'none'}===")
             # time_ranges i amp_ranges wyciągamy z DataFrame dla danego datasetu i kolumny
             time_range = (
                 df_ranges_time.loc[dataset_name, range_name] 
@@ -216,6 +222,9 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                 amp_range = None
             else:
                 amp_range = df_ranges_amps.loc[dataset_name, range_name]
+            
+            config_key = f"{dataset_name}_{range_name}"
+            all_results[config_key] = {}
             
             # Tworzymy folder
             folder_name = (
@@ -232,6 +241,8 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                         folder_wyniki, f"{method_name}_avg_metrics.csv"))
                 
                 if os.path.exists(all_metrics_file) and os.path.exists(avg_metrics_file):
+                    df_all_metrics = pd.read_csv(all_metrics_file)
+                    df_avg_metrics = pd.read_csv(avg_metrics_file)
                     print(f"Wczytano zapisane wyniki: {method_name} ({folder_wyniki})")
                     continue
                 
@@ -245,22 +256,59 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                 )
                 
                 # --- liczenie metryk ---
-                all_metrics_list = []
+                all_metrics = []
                 for peak_name in peaks:
                     for class_name in ["Class1","Class2","Class3","Class4"]:
                         df_metrics = compute_peak_metrics(detection_results, peak_name, class_name)
                         # dodajemy info o metodzie
                         df_metrics["Method"] = method_name
-                        all_metrics_list.append(df_metrics)
-                
-                df_all_metrics = pd.concat(all_metrics_list, ignore_index=True)
+                        all_metrics.append(df_metrics) 
+                #print(all_metrics)
+                # print(all_metrics)
+                # df_all = pd.concat(all_metrics, ignore_index=True)
+                # df_avg = (
+                #     df_all
+                #     .groupby(["Class","Peak","Method"])
+                #     .mean(numeric_only=True)
+                #     .reset_index()
+                # )
+                        
+                df_all_metrics = pd.concat(all_metrics, ignore_index=True)
                 df_avg_metrics = df_all_metrics.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
                 
                 # --- zapis do CSV ---
                 df_all_metrics.to_csv(all_metrics_file, index=False)
                 df_avg_metrics.to_csv(avg_metrics_file, index=False)
-                
+                    
                 print(f"Zapisano wyniki: {method_name} ({folder_wyniki})")
+            
+                all_results[config_key][method_name] = (
+                    df_all_metrics, df_avg_metrics)
+    
+    return all_results
+
+
+def top10_configs(df, peak_name, class_name, metric="Mean_XY_Error"):
+    """
+    Zwraca top 5 konfiguracji dla danego piku i klasy z uśrednionych wyników df_avg
+    """
+    df_filtered = df[(df["Peak"] == peak_name) & (df["Class"] == class_name)]
+    
+    # Sortujemy po metryce rosnąco (najmniejszy błąd najlepiej)
+    top10 = df_filtered.nsmallest(10, metric)
+    return top10
+
+def merge_identical_configs_before_top(df):
+    metric_cols = [c for c in df.columns if c != "Config"]
+
+    return (
+        df
+        .groupby(metric_cols, dropna=False, as_index=False)
+        .agg({
+            "Config": lambda x: ",".join(sorted(set(x)))
+        })
+    )
+
 
 # %%  lista metod 
 all_methods = {
@@ -288,7 +336,7 @@ it1_smooth_3Hz = smooth_dataset(it1, cutoff=3, inplace=False)
 base_path_2 = r"ICP_pulses_it2"
 it2 = load_dataset(base_path_2, "it2")
 it2_smooth_4Hz = smooth_dataset(it2, cutoff=4, inplace=False)
-it2_smooth_3Hz = smooth_dataset(it1, cutoff=3, inplace=False)
+it2_smooth_3Hz = smooth_dataset(it2, cutoff=3, inplace=False)
 
 # %% zakresy (przechowywane w pandas DataFrames - osobno time i amps)
 datasets = [
@@ -300,6 +348,8 @@ datasets = [
     (it2_smooth_3Hz, "it2_smooth_3Hz"),
 ]
 
+# %% ujednolicenie struktury zakresow dla time i amps oraz policzenie 
+# zakresow na podstawie sredniej wolnej i szybkiej
 ranges_all_time = {}
 
 for dataset, dataset_name in datasets:
@@ -331,12 +381,65 @@ for dataset, dataset_name in datasets:
             
 df_ranges_amps = pd.DataFrame.from_dict(ranges_all_amps, orient="index")
 
+
+# %% liczenie pikow
+
 wyniki_base = "wyniki_main"
 os.makedirs(wyniki_base, exist_ok=True)
 
 
-process_all_datasets(datasets, df_ranges_time, df_ranges_amps)
+results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps)
 
+
+# it2_results = {k: v for k, v in results.items() if k.startswith("it2")}
+
+# dfs_avg = []
+# for config_name, method_dict in it2_results.items():
+#     for method_name, (df_all, df_avg) in method_dict.items():
+#         df = df_avg.copy()
+#         df["Config"] = f"{config_name}_{method_name}"
+#         dfs_avg.append(df)
+# df_it2_avg = pd.concat(dfs_avg, ignore_index=True)
+
+
+# peaks = ["P1","P2","P3"]
+# classes = ["Class1","Class2","Class3","Class4"]
+
+# top_xy_dfs = {}
+# top_minxy_dfs = {}
+
+# min_fraction = 0.90
+# max_XY_Error = 30
+
+# # Tworzenie osobnych DF-ów
+# for class_id in classes:
+#     for pk in peaks:
+#         # --- filtr po udziale sygnałów ---
+#         df_filtered = df_it2_avg[
+#             (df_it2_avg["Peak"] == pk) &
+#             (df_it2_avg["Class"] == class_id) #&
+#             #(df_it2_avg["Num_Signals_with_Peak"] / df_it2_avg["Num_Signals_in_Class"] >= min_fraction) &
+#             #(df_it2_avg["Mean_XY_Error"] <= max_XY_Error) &
+#             #(df_it2_avg["Peak_Count"] <= 10)
+#         ].copy()
+        
+#         df_merged = merge_identical_configs_before_top(df_filtered)
+        
+#         # --- Mean_XY_Error ---
+#         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+#         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+
+#         # --- Min_XY_Error ---
+#         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+#         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+
+# cols_to_keep = [c for c in df_it2_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+
+# df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+# df_top_xy_all[cols_to_keep].to_csv("top_xy_it2.csv", sep=' ', index=False)
+
+# df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
+# df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it2.csv", sep=' ', index=False)
 # %% 
 
 # test_avg = peak_detection(
@@ -346,6 +449,8 @@ process_all_datasets(datasets, df_ranges_time, df_ranges_amps)
 #     amp_ranges=None,
 #     ranges_name="avg"
 # )
+
+# test_avg_results = compute_peak_metrics(test_avg, "P1", "Class1")
 
 # test_whiskers = peak_detection(
 #     dataset=it1,
