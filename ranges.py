@@ -17,6 +17,7 @@ ranges_ - krotki (time_ , amps_ )
 """
 
 import numpy as np
+import pandas as pd
 
 def generate_ranges_for_all_files(dataset, ranges, peaks=("P1", "P2", "P3")):
     """
@@ -53,6 +54,97 @@ def generate_ranges_for_all_files(dataset, ranges, peaks=("P1", "P2", "P3")):
                 amp_out[class_id][file][p] = (np.nan, np.nan)
 
     return (time_out, amp_out)
+
+
+def compute_crossings(dataset, window_fast=2, window_slow=4,
+                              min_distance=0, max_crossings=6):
+    """
+    Wyznacza pukty przeciecia sredniej ruchomej wolnej i sredniej ruchomej szybkiej
+    
+    Parameters
+    ----------
+    dataset : list
+        zestaw danych
+    window_fast : int 
+        liczba probek wliczana do szybkiej sredniej ruchomej
+    widow_slow : int
+        liczba probek wliczana do wolnej sredniej ruchomej
+    min_distance : int (optional)
+        minimalna odleglosc od poprzedniego punktu przeciecia (domyslnie 0)
+    max_crossings : int (optional)
+        liczba po ktorej zatrzymuje sie wykrywanie p. przeciecia (domyslnie 6)
+        
+    Returns
+    ------
+    cross : dict
+        Klucz - nazwa klasy (np. "Class1"), wartosc - slownik zawierajacy nazwe pliku (
+            np. Class1_it2_example_0001) oraz liste p. przeciecia (int)
+    
+    """
+    crossings_by_class = {}
+
+    classes = sorted({item["class"] for item in dataset})
+    for class_id in classes:
+        crossings_by_class[class_id] = {}
+    
+    amp_thresholds = {
+        "Class1": 0.40,
+        "Class2": 0.30,
+        "Class3": 0.10,
+        "Class4": 0.40,
+    }
+
+    for class_id in classes:
+        
+        items = [item for item in dataset if item["class"] == class_id]
+        class_id_threshold = amp_thresholds.get(class_id, 0.0)
+        
+        #n_crossings_list = []
+        
+        for item in items:
+            sig = item["signal"].iloc[:,1].values
+            
+            xf = pd.Series(sig).rolling(window_fast, min_periods=1, center=True).mean().to_numpy()
+            xs = pd.Series(sig).rolling(window_slow, min_periods=1, center=True).mean().to_numpy()
+            
+            crossings = []
+            # zeby pierwszy crossing nie byl odrzucony przez warunek min_distance
+            last_cross = -min_distance
+            found_first_valid = False
+            kept_count = 0
+            
+            for i in range(1, len(sig)):
+                crossed = ((xf[i] >= xs[i] and xf[i-1] < xs[i-1]) or
+                           (xf[i] <= xs[i] and xf[i-1] > xs[i-1]))
+                
+                if crossed and (i - last_cross >= min_distance):
+                    amp = sig[i]
+                    
+                    if not found_first_valid:
+                        if amp >= class_id_threshold:
+                            # pierwszy crossing spełniający próg
+                            found_first_valid = True
+                        else:
+                            # za mała amplituda -> odrzucamy
+                            continue
+                        
+                    crossings.append(i)
+                    last_cross = i
+                    kept_count += 1
+                    
+                    if kept_count >= max_crossings:
+                        break
+                    
+            peaks_dict = {
+                "P1": tuple(crossings[0:2]), # indeksy 0,1
+                "P2": tuple(crossings[2:4]), # indeksy 2,3
+                "P3": tuple(crossings[4:6]), # indeksy 4,5
+            }
+
+            crossings_by_class[class_id][item["file"]] = peaks_dict
+        
+    return crossings_by_class
+
 
 
 time_pm3 = {
