@@ -12,7 +12,7 @@ from data_handling import load_dataset, smooth_dataset
 from methods import (concave, curvature, modified_scholkmann, 
                      line_distance, hilbert_envelope, wavelet)
 from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
-                    generate_ranges_for_all_files, compute_crossings)
+                    generate_ranges_for_all_files, compute_ranges_avg)
 
 
 # sprawdzone i dzialajace: import zakresow z ranges, load_dataset i smooth_dataset
@@ -113,17 +113,6 @@ def peak_detection(dataset, method_name, time_ranges=None, amp_ranges=None,
 
     return results
 
-def compute_ranges_avg(dataset):
-    r_c1_c3 = compute_crossings(dataset, min_distance=8)
-    r_c2_c4 = compute_crossings(dataset, min_distance=12)
-
-    merged = {}
-    for class_id in ("Class1", "Class3"):
-        merged[class_id] = r_c1_c3[class_id]
-    for class_id in ("Class2", "Class4"):
-        merged[class_id] = r_c2_c4[class_id]
-
-    return merged
 
 # DO SPRAWDZENIA!!!!!!!! CZAT chyba dziala tbf
 def compute_peak_metrics(detection_results, peak_name, class_name):
@@ -365,14 +354,16 @@ for dataset, dataset_name in datasets:
         (time, amp) = generate_ranges_for_all_files(dataset, range_type)
         ranges_all_time[dataset_name][range_name] = time
     # avg liczymy ZAWSZE z bazowego datasetu
-    if dataset_name.startswith("it1"):
-        base_dataset = it1
-    elif dataset_name.startswith("it2"):
-        base_dataset = it2
-    else:
-        raise ValueError(f"Nieznany dataset: {dataset_name}")
-    ranges_all_time[dataset_name]["avg"] = compute_ranges_avg(base_dataset)
+    # if dataset_name.startswith("it1"):
+    #     base_dataset = it1
+    # elif dataset_name.startswith("it2"):
+    #     base_dataset = it2
+    # else:
+    #     raise ValueError(f"Nieznany dataset: {dataset_name}")
+    # ranges_all_time[dataset_name]["avg"] = compute_ranges_avg(base_dataset)
+    ranges_all_time[dataset_name]["avg"] = compute_ranges_avg(dataset)
 df_ranges_time = pd.DataFrame.from_dict(ranges_all_time, orient="index")
+
 
 ranges_all_amps = {}
 
@@ -391,88 +382,89 @@ df_ranges_amps = pd.DataFrame.from_dict(ranges_all_amps, orient="index")
 
 
 # %% liczenie pikow
-
-wyniki_base = "wyniki_same_avg_for_all"
-os.makedirs(wyniki_base, exist_ok=True)
-
-
-results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps)
-
-
-it2_results = {k: v for k, v in results.items() if k.startswith("it2")}
-
-dfs_avg = []
-for config_name, method_dict in it2_results.items():
-    for method_name, (df_all, df_avg) in method_dict.items():
-        df = df_avg.copy()
-        df["Config"] = f"{config_name}_{method_name}"
-        dfs_avg.append(df)
-df_it2_avg = pd.concat(dfs_avg, ignore_index=True)
-
-
-peaks = ["P1","P2","P3"]
-classes = ["Class1","Class2","Class3","Class4"]
-
-top_xy_dfs = {}
-top_minxy_dfs = {}
-
-min_fraction = 0.85
-# max_XY_Error = 30
-
-# Tworzenie osobnych DF-ów
-for class_id in classes:
-    for pk in peaks:
-        # --- filtr po udziale sygnałów ---
-        df_filtered = df_it2_avg[
-            (df_it2_avg["Peak"] == pk) &
-            (df_it2_avg["Class"] == class_id) &
-            (df_it2_avg["Num_Signals_with_Peak"] / df_it2_avg["Num_Signals_in_Class"] >= min_fraction)
-            #(df_it2_avg["Mean_XY_Error"] <= max_XY_Error) &
-            #(df_it2_avg["Peak_Count"] <= 10)
-        ].copy()
-        
-        error_cols = ["Mean_XY_Error", "Min_XY_Error"]
-        
-        df_filtered[error_cols] = df_filtered[error_cols].round(10)
-        #print(df_filtered.columns.tolist())
-        df_merged = merge_identical_configs_before_top(df_filtered)
-        
-        # --- Mean_XY_Error ---
-        df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
-        top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
-
-        # --- Min_XY_Error ---
-        df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
-        top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
-
-cols_to_keep = [c for c in df_it2_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
-
-df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-df_top_xy_all[cols_to_keep].to_csv("top_xy_it2_85_same_avg.csv", sep=' ', index=False)
-
-df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
-df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it2_85_same_avg.csv", sep=' ', index=False)
-
-
-# test_avg = peak_detection(
-#     dataset=it1,
-#     method_name="concave",
-#     time_ranges=df_ranges_time.loc["it1", "avg"],
-#     amp_ranges=None,
-#     ranges_name="avg"
-# )
-
-# test_avg_results = compute_peak_metrics(test_avg, "P1", "Class1")
-
-# test_whiskers = peak_detection(
-#     dataset=it1,
-#     method_name="concave",
-#     time_ranges=df_ranges_time.loc["it1", "whiskers"],
-#     amp_ranges=df_ranges_amps.loc["it1", "whiskers"],
-#     ranges_name="whiskers"
-# )
-
+if __name__ == "__main__":
+    
+    wyniki_base = "wyniki_main"
+    os.makedirs(wyniki_base, exist_ok=True)
     
     
-print("jejj jupii")
+    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps)
+    
+    
+    # it2_results = {k: v for k, v in results.items() if k.startswith("it2")}
+    
+    # dfs_avg = []
+    # for config_name, method_dict in it2_results.items():
+    #     for method_name, (df_all, df_avg) in method_dict.items():
+    #         df = df_avg.copy()
+    #         df["Config"] = f"{config_name}_{method_name}"
+    #         dfs_avg.append(df)
+    # df_it2_avg = pd.concat(dfs_avg, ignore_index=True)
+    
+    
+    # peaks = ["P1","P2","P3"]
+    # classes = ["Class1","Class2","Class3","Class4"]
+    
+    # top_xy_dfs = {}
+    # top_minxy_dfs = {}
+    
+    # min_fraction = 0.85
+    # # max_XY_Error = 30
+    
+    # # Tworzenie osobnych DF-ów
+    # for class_id in classes:
+    #     for pk in peaks:
+    #         # --- filtr po udziale sygnałów ---
+    #         df_filtered = df_it2_avg[
+    #             (df_it2_avg["Peak"] == pk) &
+    #             (df_it2_avg["Class"] == class_id) &
+    #             (df_it2_avg["Num_Signals_with_Peak"] / df_it2_avg["Num_Signals_in_Class"] >= min_fraction)
+    #             #(df_it2_avg["Mean_XY_Error"] <= max_XY_Error) &
+    #             #(df_it2_avg["Peak_Count"] <= 10)
+    #         ].copy()
+            
+    #         error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+            
+    #         df_filtered[error_cols] = df_filtered[error_cols].round(10)
+    #         #print(df_filtered.columns.tolist())
+    #         df_merged = merge_identical_configs_before_top(df_filtered)
+            
+    #         # --- Mean_XY_Error ---
+    #         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+    #         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+    
+    #         # --- Min_XY_Error ---
+    #         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+    #         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+    
+    # cols_to_keep = [c for c in df_it2_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    
+    # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    # df_top_xy_all[cols_to_keep].to_csv("top_xy_it2_85_same_avg.csv", sep=' ', index=False)
+    
+    # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
+    # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it2_85_same_avg.csv", sep=' ', index=False)
+    
+    
+    # test_avg = peak_detection(
+    #     dataset=it1,
+    #     method_name="concave",
+    #     time_ranges=df_ranges_time.loc["it1", "avg"],
+    #     amp_ranges=None,
+    #     ranges_name="avg"
+    # )
+    
+    # test_avg_results = compute_peak_metrics(test_avg, "P1", "Class1")
+    
+    # test_whiskers = peak_detection(
+    #     dataset=it1,
+    #     method_name="concave",
+    #     time_ranges=df_ranges_time.loc["it1", "whiskers"],
+    #     amp_ranges=df_ranges_amps.loc["it1", "whiskers"],
+    #     ranges_name="whiskers"
+    # )
+    
+        
+        
+    print("jejj jupii")
     

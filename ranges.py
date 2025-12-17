@@ -146,6 +146,18 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
     return crossings_by_class
 
 
+def compute_ranges_avg(dataset):
+    r_c1_c3 = compute_crossings(dataset, min_distance=8)
+    r_c2_c4 = compute_crossings(dataset, min_distance=12)
+
+    merged = {}
+    for class_id in ("Class1", "Class3"):
+        merged[class_id] = r_c1_c3[class_id]
+    for class_id in ("Class2", "Class4"):
+        merged[class_id] = r_c2_c4[class_id]
+
+    return merged
+
 
 time_pm3 = {
     "Class1": {"P1": (17, 73), "P2": (34, 107), "P3": (60, 143)},
