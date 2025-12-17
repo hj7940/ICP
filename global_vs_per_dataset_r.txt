@@ -1,0 +1,121 @@
+DLA Class1 P1:
+- Mean_XY_Error mniejszy o średnio 0.0005
+- Peak_Count większy o 0.01
+- Num_Signals_with_Peak większy o 2.00
+
+DLA Class1 P2:
+- Mean_XY_Error mniejszy o średnio 2.5389
+- Peak_Count mniejszy o 0.15
+- Num_Signals_with_Peak mniejszy o 0.90
+
+DLA Class1 P3:
+- Mean_XY_Error większy o średnio 0.0000
+- Peak_Count mniejszy o 0.00
+- Num_Signals_with_Peak mniejszy o 0.00
+
+DLA Class2 P1:
+- Mean_XY_Error większy o średnio 0.1848
+- Peak_Count większy o 0.02
+- Num_Signals_with_Peak mniejszy o 0.50
+
+DLA Class2 P2:
+- Mean_XY_Error większy o średnio 0.0129
+- Peak_Count większy o 0.03
+- Num_Signals_with_Peak większy o 0.60
+
+DLA Class2 P3:
+- Mean_XY_Error większy o średnio 0.0000
+- Peak_Count mniejszy o 0.00
+- Num_Signals_with_Peak mniejszy o 0.00
+
+DLA Class3 P1:
+- Mean_XY_Error większy o średnio 0.1090
+- Peak_Count większy o 0.02
+- Num_Signals_with_Peak większy o 1.70
+
+DLA Class3 P2:
+- Mean_XY_Error mniejszy o średnio 0.0643
+- Peak_Count mniejszy o 0.02
+- Num_Signals_with_Peak mniejszy o 2.90
+
+DLA Class3 P3:
+- Mean_XY_Error mniejszy o średnio 1.2492
+- Peak_Count mniejszy o 0.86
+- Num_Signals_with_Peak mniejszy o 4.80
+
+DLA Class4 P1:
+- Mean_XY_Error większy o średnio nan
+- Peak_Count mniejszy o 0.00
+- Num_Signals_with_Peak mniejszy o 0.00
+
+DLA Class4 P2:
+- Mean_XY_Error większy o średnio 0.0000
+- Peak_Count mniejszy o 0.00
+- Num_Signals_with_Peak mniejszy o 0.00
+
+DLA Class4 P3:
+- Mean_XY_Error większy o średnio nan
+- Peak_Count mniejszy o 0.00
+- Num_Signals_with_Peak mniejszy o 0.00
+
+%runfile 'C:/Users/User/OneDrive/Dokumenty/praca inżynierska/global_vs_per_dataset.py' --wdir
+
+DLA Class1 P1:
+- Mean_XY_Error: 0.6036 (per_dataset) < 0.6042 (global_avg), mniejszy o 0.0005
+- Peak_Count: 0.95 (per_dataset) > 0.94 (global_avg), większy o 0.01
+- Num_Signals_with_Peak: 233.90 (per_dataset) > 231.90 (global_avg), większy o 2.00
+
+DLA Class1 P2:
+- Mean_XY_Error: 9.5122 (per_dataset) < 12.0511 (global_avg), mniejszy o 2.5389
+- Peak_Count: 1.58 (per_dataset) < 1.73 (global_avg), mniejszy o 0.15
+- Num_Signals_with_Peak: 235.50 (per_dataset) < 236.40 (global_avg), mniejszy o 0.90
+
+DLA Class1 P3:
+- Mean_XY_Error: 5.2107 (per_dataset) > 5.2107 (global_avg), większy o 0.0000
+- Peak_Count: 1.02 (per_dataset) < 1.02 (global_avg), mniejszy o 0.00
+- Num_Signals_with_Peak: 225.30 (per_dataset) < 225.30 (global_avg), mniejszy o 0.00
+
+DLA Class2 P1:
+- Mean_XY_Error: 2.5066 (per_dataset) > 2.3219 (global_avg), większy o 0.1848
+- Peak_Count: 1.06 (per_dataset) > 1.05 (global_avg), większy o 0.02
+- Num_Signals_with_Peak: 236.30 (per_dataset) < 236.80 (global_avg), mniejszy o 0.50
+
+DLA Class2 P2:
+- Mean_XY_Error: 5.3441 (per_dataset) > 5.3312 (global_avg), większy o 0.0129
+- Peak_Count: 1.29 (per_dataset) > 1.26 (global_avg), większy o 0.03
+- Num_Signals_with_Peak: 233.20 (per_dataset) > 232.60 (global_avg), większy o 0.60
+
+DLA Class2 P3:
+- Mean_XY_Error: 12.2721 (per_dataset) > 12.2721 (global_avg), większy o 0.0000
+- Peak_Count: 1.65 (per_dataset) < 1.65 (global_avg), mniejszy o 0.00
+- Num_Signals_with_Peak: 222.60 (per_dataset) < 222.60 (global_avg), mniejszy o 0.00
+
+DLA Class3 P1:
+- Mean_XY_Error: 2.1856 (per_dataset) > 2.0766 (global_avg), większy o 0.1090
+- Peak_Count: 1.16 (per_dataset) > 1.14 (global_avg), większy o 0.02
+- Num_Signals_with_Peak: 246.30 (per_dataset) > 244.60 (global_avg), większy o 1.70
+
+DLA Class3 P2:
+- Mean_XY_Error: 2.7780 (per_dataset) < 2.8423 (global_avg), mniejszy o 0.0643
+- Peak_Count: 1.08 (per_dataset) < 1.10 (global_avg), mniejszy o 0.02
+- Num_Signals_with_Peak: 226.10 (per_dataset) < 229.00 (global_avg), mniejszy o 2.90
+
+DLA Class3 P3:
+- Mean_XY_Error: 12.3910 (per_dataset) < 13.6402 (global_avg), mniejszy o 1.2492
+- Peak_Count: 1.81 (per_dataset) < 2.67 (global_avg), mniejszy o 0.86
+- Num_Signals_with_Peak: 233.90 (per_dataset) < 238.70 (global_avg), mniejszy o 4.80
+
+DLA Class4 P1:
+- Mean_XY_Error: nan (per_dataset) > nan (global_avg), większy o nan
+- Peak_Count: 1.94 (per_dataset) < 1.94 (global_avg), mniejszy o 0.00
+- Num_Signals_with_Peak: 49.80 (per_dataset) < 49.80 (global_avg), mniejszy o 0.00
+
+DLA Class4 P2:
+- Mean_XY_Error: 0.9720 (per_dataset) > 0.9720 (global_avg), większy o 0.0000
+- Peak_Count: 1.54 (per_dataset) < 1.54 (global_avg), mniejszy o 0.00
+- Num_Signals_with_Peak: 45.80 (per_dataset) < 45.80 (global_avg), mniejszy o 0.00
+
+DLA Class4 P3:
+- Mean_XY_Error: nan (per_dataset) > nan (global_avg), większy o nan
+- Peak_Count: 1.89 (per_dataset) < 1.89 (global_avg), mniejszy o 0.00
+- Num_Signals_with_Peak: 49.80 (per_dataset) < 49.80 (global_avg), mniejszy o 0.00

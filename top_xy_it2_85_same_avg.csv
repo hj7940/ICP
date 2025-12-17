@@ -1,0 +1,121 @@
+Class Peak Mean_XY_Error Min_XY_Error Peak_Count Num_Signals_in_Class Num_Signals_with_Peak Config
+Class1 P1 0.0263158215 0.0263158215 0.912 250.0 228.0 it2_avg_concave_d2x=-0-002
+Class1 P1 0.0329218418 0.0288066136 0.98 250.0 243.0 it2_avg_concave,it2_avg_concave_d2x=0-002
+Class1 P1 0.0389610959 0.0259740549 0.936 250.0 231.0 it2_whiskers_concave,it2_whiskers_concave_d2x=0-002
+Class1 P1 0.0389908993 0.0229358114 0.876 250.0 218.0 it2_whiskers_concave_d2x=-0-002
+Class1 P1 0.0926725605 0.0215517538 0.936 250.0 232.0 it2_full_concave_d2x=-0-002
+Class1 P1 0.425405401 0.2056463864 1.024 250.0 248.0 it2_full_concave,it2_full_concave_d2x=0-002
+Class1 P1 1.1425581821 0.025531946 1.016 250.0 235.0 it2_pm3_concave_d2x=-0-002
+Class1 P1 1.3581048626 1.3581048626 0.916 250.0 229.0 it2_smooth_4Hz_avg_concave,it2_smooth_4Hz_avg_concave_d2x=0-002
+Class1 P1 1.3705625558 1.3705625558 0.896 250.0 224.0 it2_smooth_4Hz_avg_concave_d2x=-0-002
+Class1 P1 1.5151772919 1.363662865 0.932 250.0 231.0 it2_smooth_4Hz_pm3_concave_d2x=-0-002
+Class1 P2 4.7310209944 3.1375585591 1.704 250.0 240.0 it2_avg_curvature
+Class1 P2 5.804742312 3.2512259622 1.028 250.0 215.0 it2_smooth_4Hz_whiskers_curvature
+Class1 P2 5.8995731388 2.981734021 1.22 250.0 218.0 it2_whiskers_wavelet
+Class1 P2 10.2992653986 2.7429506165 3.356 250.0 245.0 it2_whiskers_curvature
+Class1 P2 14.1585988981 4.3210656058 1.624 250.0 243.0 it2_smooth_4Hz_full_curvature
+Class1 P2 14.944158619 3.776513687 2.084 250.0 246.0 it2_full_wavelet
+Class1 P2 15.3841839469 5.5225462362 1.832 250.0 245.0 it2_smooth_4Hz_full_wavelet
+Class1 P2 15.9405838524 7.8554095535 1.412 250.0 235.0 it2_smooth_4Hz_full_line_distance_10
+Class1 P2 15.9405838524 7.8554095535 1.412 250.0 235.0 it2_smooth_4Hz_full_line_perpendicular_10
+Class1 P2 17.4079127081 6.9877098886 1.6 250.0 242.0 it2_smooth_4Hz_pm3_line_distance_10
+Class1 P3 4.5344262673 3.1835036918 0.952 250.0 218.0 it2_smooth_3Hz_full_concave,it2_smooth_3Hz_full_concave_d2x=0-002
+Class1 P3 4.5717820661 3.2083509482 0.944 250.0 216.0 it2_smooth_3Hz_whiskers_concave,it2_smooth_3Hz_whiskers_concave_d2x=0-002
+Class1 P3 5.0086932787 2.2900584727 1.084 250.0 231.0 it2_smooth_4Hz_full_concave,it2_smooth_4Hz_full_concave_d2x=0-002
+Class1 P3 5.027315673 3.3909452104 0.976 250.0 220.0 it2_smooth_3Hz_pm3_concave,it2_smooth_3Hz_pm3_concave_d2x=0-002
+Class1 P3 5.0804652853 2.5087109191 1.072 250.0 230.0 it2_smooth_4Hz_whiskers_concave,it2_smooth_4Hz_whiskers_concave_d2x=0-002
+Class1 P3 5.1955809297 3.7555742204 0.996 250.0 225.0 it2_smooth_3Hz_full_hilbert
+Class1 P3 5.316768085 3.9411958996 0.976 250.0 221.0 it2_smooth_3Hz_whiskers_hilbert
+Class1 P3 5.6175507876 2.7991530994 1.112 250.0 234.0 it2_smooth_4Hz_full_hilbert
+Class1 P3 5.8311988021 3.1601814868 1.092 250.0 231.0 it2_smooth_4Hz_whiskers_hilbert
+Class1 P3 5.9229558522 3.978007537 1.032 250.0 227.0 it2_smooth_3Hz_pm3_hilbert
+Class2 P1 0.4391898238 0.4234240158 0.896 250.0 222.0 it2_avg_concave,it2_avg_concave_d2x=0-002
+Class2 P1 1.9220175481 1.9220175481 0.972 250.0 243.0 it2_smooth_3Hz_avg_hilbert
+Class2 P1 2.242986894 0.7175974761 1.112 250.0 216.0 it2_whiskers_concave
+Class2 P1 2.2429868953 0.7175974761 1.116 250.0 216.0 it2_whiskers_concave_d2x=0-002
+Class2 P1 2.290273734 2.1722464507 1.236 250.0 250.0 it2_smooth_3Hz_avg_wavelet
+Class2 P1 2.3392297214 2.3392297214 0.944 250.0 236.0 it2_smooth_3Hz_avg_line_distance_10
+Class2 P1 2.3392297214 2.3392297214 0.944 250.0 236.0 it2_smooth_3Hz_avg_line_perpendicular_10
+Class2 P1 2.912410059 2.912410059 1.0 250.0 250.0 it2_smooth_3Hz_avg_curvature
+Class2 P1 3.2049553807 3.0682591152 1.268 250.0 250.0 it2_smooth_4Hz_avg_wavelet
+Class2 P1 3.2854627854 3.2854627854 0.996 250.0 249.0 it2_smooth_4Hz_avg_line_distance_10
+Class2 P2 3.9551495652 1.8973303443 1.308 250.0 224.0 it2_whiskers_hilbert
+Class2 P2 4.2248033073 3.5734270022 0.924 250.0 218.0 it2_smooth_4Hz_whiskers_curvature
+Class2 P2 4.6609252725 3.3809801879 1.16 250.0 231.0 it2_whiskers_wavelet
+Class2 P2 4.9949934847 4.0279382685 1.072 250.0 215.0 it2_smooth_4Hz_whiskers_wavelet
+Class2 P2 5.5680360187 2.3000237647 1.26 250.0 250.0 it2_smooth_4Hz_full_curvature
+Class2 P2 5.8325719669 2.5508563206 1.428 250.0 236.0 it2_whiskers_concave_d2x=0-002
+Class2 P2 5.8435888277 2.5508563206 1.42 250.0 236.0 it2_whiskers_concave
+Class2 P2 6.0612108792 3.3671096873 1.132 250.0 237.0 it2_smooth_4Hz_full_line_distance_10
+Class2 P2 6.0612108792 3.3671096873 1.132 250.0 237.0 it2_smooth_4Hz_full_line_perpendicular_10
+Class2 P2 6.1093789052 1.5413249016 1.796 250.0 242.0 it2_full_hilbert
+Class2 P3 10.4422691837 6.8140752323 2.464 250.0 231.0 it2_avg_curvature
+Class2 P3 11.0002532674 6.4133121766 1.104 250.0 213.0 it2_smooth_4Hz_full_hilbert
+Class2 P3 11.5730391278 7.5729745544 1.076 250.0 213.0 it2_smooth_4Hz_whiskers_hilbert
+Class2 P3 12.2178553206 5.0130442516 1.948 250.0 233.0 it2_whiskers_hilbert
+Class2 P3 12.3053894061 5.5001897927 1.744 250.0 224.0 it2_whiskers_concave
+Class2 P3 12.3969835239 5.5001897927 1.768 250.0 224.0 it2_whiskers_concave_d2x=0-002
+Class2 P3 12.9330215585 6.7754273745 1.224 250.0 218.0 it2_smooth_4Hz_pm3_hilbert
+Class2 P3 13.0616501721 4.3907030146 2.108 250.0 233.0 it2_full_hilbert
+Class2 P3 13.2546065918 7.4227612488 1.176 250.0 213.0 it2_smooth_4Hz_pm3_concave,it2_smooth_4Hz_pm3_concave_d2x=0-002
+Class2 P3 13.535470853 4.8260601596 1.912 250.0 224.0 it2_full_concave
+Class3 P1 1.9746239088 1.8200829402 1.172 250.0 233.0 it2_smooth_3Hz_avg_wavelet
+Class3 P1 2.0266746373 1.780426652 1.256 250.0 241.0 it2_smooth_3Hz_whiskers_wavelet
+Class3 P1 2.0458510998 2.0458510998 0.968 250.0 242.0 it2_smooth_3Hz_avg_curvature
+Class3 P1 2.0511644612 1.8918224971 1.268 250.0 249.0 it2_smooth_4Hz_full_wavelet,it2_smooth_4Hz_whiskers_wavelet
+Class3 P1 2.0528240244 2.0528240244 0.992 250.0 248.0 it2_smooth_3Hz_whiskers_curvature
+Class3 P1 2.0803005064 1.8350700747 1.26 250.0 242.0 it2_smooth_3Hz_full_wavelet
+Class3 P1 2.0850860114 2.0528240244 0.996 250.0 248.0 it2_smooth_3Hz_full_curvature
+Class3 P1 2.0933412454 1.8918224971 1.272 250.0 249.0 it2_smooth_4Hz_pm3_wavelet
+Class3 P1 2.166313352 2.0165480374 1.244 250.0 246.0 it2_smooth_4Hz_avg_wavelet
+Class3 P1 2.1899386743 2.0528240244 1.008 250.0 248.0 it2_smooth_3Hz_pm3_curvature
+Class3 P2 1.4822005393 0.6709463714 1.064 250.0 234.0 it2_whiskers_concave,it2_whiskers_concave_d2x=0-002
+Class3 P2 2.1576664484 1.9684772201 0.904 250.0 222.0 it2_smooth_4Hz_whiskers_concave,it2_smooth_4Hz_whiskers_concave_d2x=0-002
+Class3 P2 2.5615308952 1.8927165243 1.18 250.0 233.0 it2_whiskers_wavelet
+Class3 P2 2.7368910415 2.0127769669 1.088 250.0 235.0 it2_whiskers_hilbert
+Class3 P2 2.8279954743 2.5734082813 1.024 250.0 218.0 it2_smooth_4Hz_whiskers_wavelet
+Class3 P2 3.0921773792 2.9723617249 0.88 250.0 217.0 it2_smooth_4Hz_whiskers_hilbert
+Class3 P2 3.1063964737 2.5574574125 0.988 250.0 235.0 it2_smooth_3Hz_full_concave,it2_smooth_3Hz_full_concave_d2x=0-002
+Class3 P2 3.3676650276 1.8823611472 1.084 250.0 238.0 it2_smooth_4Hz_full_concave,it2_smooth_4Hz_full_concave_d2x=0-002
+Class3 P2 3.4937807412 2.9205723974 1.772 250.0 214.0 it2_smooth_3Hz_full_modified_scholkmann_1-2_99,it2_smooth_3Hz_full_modified_scholkmann_1_99
+Class3 P2 3.5963310938 2.8073901808 1.04 250.0 244.0 it2_smooth_3Hz_pm3_concave,it2_smooth_3Hz_pm3_concave_d2x=0-002
+Class3 P3 8.8536588248 6.435080115 2.088 250.0 223.0 it2_avg_curvature
+Class3 P3 13.0470834712 12.1826795197 2.048 250.0 236.0 it2_full_modified_scholkmann_1-2_99,it2_full_modified_scholkmann_1_99,it2_whiskers_modified_scholkmann_1-2_99,it2_whiskers_modified_scholkmann_1_99
+Class3 P3 13.5349245574 12.5899407244 2.18 250.0 246.0 it2_pm3_modified_scholkmann_1-2_99,it2_pm3_modified_scholkmann_1_99
+Class3 P3 13.6223750123 12.680511394 2.22 250.0 250.0 it2_none_modified_scholkmann_1-2_99,it2_none_modified_scholkmann_1_99
+Class3 P3 14.114133685 5.4069861307 1.916 250.0 236.0 it2_full_hilbert
+Class3 P3 14.3789753941 6.0214194768 1.888 250.0 236.0 it2_whiskers_hilbert
+Class3 P3 14.631787658 6.8399145637 1.836 250.0 237.0 it2_full_concave_d2x=0-002
+Class3 P3 14.6547845619 6.8399145637 1.816 250.0 237.0 it2_full_concave
+Class3 P3 14.691633323 8.8277264301 8.928 250.0 249.0 it2_full_modified_scholkmann_1-2_95,it2_full_modified_scholkmann_1_95,it2_whiskers_modified_scholkmann_1-2_95,it2_whiskers_modified_scholkmann_1_95
+Class3 P3 14.8726567888 7.363146262 1.812 250.0 237.0 it2_whiskers_concave_d2x=0-002
+Class4 P1   0.98 50.0 49.0 it2_smooth_3Hz_none_concave,it2_smooth_3Hz_none_concave_d2x=0-002
+Class4 P1   1.06 50.0 50.0 it2_smooth_4Hz_none_concave,it2_smooth_4Hz_none_concave_d2x=0-002,it2_smooth_4Hz_none_hilbert
+Class4 P1   1.26 50.0 50.0 it2_smooth_3Hz_none_hilbert
+Class4 P1   2.0 50.0 50.0 it2_smooth_3Hz_none_modified_scholkmann_1-2_99,it2_smooth_3Hz_none_modified_scholkmann_1_99
+Class4 P1   2.04 50.0 50.0 it2_smooth_4Hz_none_modified_scholkmann_1-2_99,it2_smooth_4Hz_none_modified_scholkmann_1_99
+Class4 P1   2.12 50.0 50.0 it2_none_hilbert
+Class4 P1   2.26 50.0 50.0 it2_none_modified_scholkmann_1-2_99,it2_none_modified_scholkmann_1_99
+Class4 P1   2.38 50.0 50.0 it2_smooth_3Hz_none_line_distance_10,it2_smooth_3Hz_none_line_perpendicular_10
+Class4 P1   2.54 50.0 49.0 it2_avg_curvature
+Class4 P1   2.72 50.0 50.0 it2_none_concave
+Class4 P2 0.9318186875 0.9318186875 0.88 50.0 44.0 it2_smooth_4Hz_full_concave,it2_smooth_4Hz_full_concave_d2x=0-002
+Class4 P2 0.9326254628 0.2127660069 2.1 50.0 47.0 it2_pm3_modified_scholkmann_1-2_99,it2_pm3_modified_scholkmann_1_99
+Class4 P2 0.934110262 0.0 1.24 50.0 43.0 it2_full_concave_d2x=0-002
+Class4 P2 0.9379859037 0.2325581936 1.88 50.0 43.0 it2_full_modified_scholkmann_1-2_99,it2_full_modified_scholkmann_1_99
+Class4 P2 0.9431823593 0.4545458413 1.74 50.0 44.0 it2_smooth_4Hz_full_modified_scholkmann_1-2_99,it2_smooth_4Hz_full_modified_scholkmann_1_99
+Class4 P2 0.9438000263 0.0 1.22 50.0 43.0 it2_full_concave
+Class4 P2 0.9583339512 0.9583339512 0.96 50.0 48.0 it2_smooth_4Hz_pm3_concave,it2_smooth_4Hz_pm3_concave_d2x=0-002
+Class4 P2 1.0200006928 0.5000004885 2.04 50.0 50.0 it2_smooth_4Hz_none_modified_scholkmann_1-2_99,it2_smooth_4Hz_none_modified_scholkmann_1_99
+Class4 P2 1.0312507158 0.5208338422 1.94 50.0 48.0 it2_smooth_4Hz_pm3_modified_scholkmann_1-2_99,it2_smooth_4Hz_pm3_modified_scholkmann_1_99
+Class4 P2 1.086809587 0.0 1.44 50.0 48.0 it2_pm3_concave_d2x=0-002
+Class4 P3   0.98 50.0 49.0 it2_smooth_3Hz_none_concave,it2_smooth_3Hz_none_concave_d2x=0-002
+Class4 P3   1.06 50.0 50.0 it2_smooth_4Hz_none_concave,it2_smooth_4Hz_none_concave_d2x=0-002,it2_smooth_4Hz_none_hilbert
+Class4 P3   1.26 50.0 50.0 it2_smooth_3Hz_none_hilbert
+Class4 P3   2.0 50.0 50.0 it2_smooth_3Hz_none_modified_scholkmann_1-2_99,it2_smooth_3Hz_none_modified_scholkmann_1_99
+Class4 P3   2.04 50.0 49.0 it2_avg_curvature
+Class4 P3   2.04 50.0 50.0 it2_smooth_4Hz_none_modified_scholkmann_1-2_99,it2_smooth_4Hz_none_modified_scholkmann_1_99
+Class4 P3   2.12 50.0 50.0 it2_none_hilbert
+Class4 P3   2.26 50.0 50.0 it2_none_modified_scholkmann_1-2_99,it2_none_modified_scholkmann_1_99
+Class4 P3   2.38 50.0 50.0 it2_smooth_3Hz_none_line_distance_10,it2_smooth_3Hz_none_line_perpendicular_10
+Class4 P3   2.72 50.0 50.0 it2_none_concave
