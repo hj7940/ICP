@@ -4,12 +4,30 @@ Created on Wed Dec 17 02:27:15 2025
 
 Ostateczny algorytm
 @author: Hanna Jaworska
+
+dataset : list
+    Lista zawierajaca elementy:       
+        
+    - class : str (np. "Class1")
+    
+    - file : str (np. "Class1_example_0001")
+    
+    - signal: DataFrame (kolumny: Sample_no, ICP)
+    
+    - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
+
+    dataset = [
+    {'class': 'Class1', 'file': 'Class1_example_0001', 'signal': DataFrame, 'peaks_ref': {'P1': 31, 'P2': 53, 'P3': 90}},
+    {'class': 'Class1', 'file': 'Class1_example_0002', 'signal': DataFrame, 'peaks_ref': {'P1': 31, 'P2': 58, 'P3': 97}},
+     ... i tak dalej
+    ]
+    
 """
 
 # import os
 import pandas as pd
 import numpy as np
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 # from data_handling import load_dataset, smooth_dataset
 # from methods import (concave, curvature, modified_scholkmann, 
 #                      line_distance, hilbert_envelope, wavelet)
@@ -152,7 +170,7 @@ def compute_peak_metrics_fixed(detection_results, settings, peak_name, class_nam
         and item["peak"] == peak_name
         and item["method"] in settings["method"].values)]
     
-    print(class_signals)
+    
     
     for item in class_signals:
         file_name = item["file"]
@@ -217,6 +235,177 @@ def compute_peak_metrics_fixed(detection_results, settings, peak_name, class_nam
 
     return df_metrics
 
+
+def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
+    """
+    Łączy słowniki z wynikami detekcji pików po 'file',
+    aby każdy plik miał wszystkie piki w jednym słowniku.
+    
+    results: lista słowników (po jednym pikie)
+    expected_peaks: tuple z oczekiwanymi pikami (domyślnie P1,P2,P3)
+    
+    Zwraca: lista słowników w formacie results_a
+    """
+    combined = {}
+    
+    for item in results:
+        file_name = item["file"]
+        method = item.get("method", None)
+        class_id = item["class"]
+        sig = item["signal"]
+        
+        if file_name not in combined:
+            combined[file_name] = {
+                "class": class_id,
+                "file": file_name,
+                "signal": sig,
+                "method": method,
+                "peaks_ref": {peak: np.nan for peak in expected_peaks},
+                "peaks_detected": {peak: [] for peak in expected_peaks}
+            }
+        
+        peak_name = item["peak"]
+        if peak_name in expected_peaks:
+            combined[file_name]["peaks_ref"][peak_name] = item["peaks_ref"].get(peak_name, np.nan)
+            combined[file_name]["peaks_detected"][peak_name] = item["peaks_detected"].get(peak_name, [])
+    
+    # Zamiana słownika na listę słowników
+    return list(combined.values())
+
+def compute_peak_metrics_all_peaks(detection_results, class_name):
+    """
+    Łączy metryki wszystkich pików P1, P2, P3 dla każdego pliku/metody.
+    Zwraca DataFrame z osobnymi błędami i liczby pików dla P1,P2,P3,
+    Signals_with_all_Peaks i Num_Signals_in_Class.
+    Obsługuje brakujące piki w klasach.
+    """
+    expected_peaks = ["P1", "P2", "P3"]
+
+    # filtrowanie po klasie
+    class_signals = [item for item in detection_results if item["class"] == class_name]
+
+    # grupujemy po file i metodzie
+    grouped = {}
+    for item in class_signals:
+        key = (item["file"], item["method"])
+        if key not in grouped:
+            grouped[key] = {}
+        grouped[key][item["peak"]] = item
+
+    metrics_list = []
+
+    for (file_name, method_name), peaks_dict in grouped.items():
+        row = {
+            "Class": class_name,
+            "File": file_name,
+            "Method": method_name,
+        }
+
+        signals_all_detected = True  # czy wszystkie oczekiwane piki są wykryte w tym pliku
+
+        for peak in expected_peaks:
+            item = peaks_dict.get(peak)
+            if item is None:
+                # brak piku w danym pliku
+                row.update({
+                    f"Mean_X_Error_{peak}": np.nan,
+                    f"Mean_Y_Error_{peak}": np.nan,
+                    f"Mean_XY_Error_{peak}": np.nan,
+                    f"Min_XY_Error_{peak}": np.nan,
+                    f"Peak_Count_{peak}": 0
+                })
+                signals_all_detected = False
+                continue
+
+            ref_idx = item["peaks_ref"].get(peak)
+            detected = item["peaks_detected"].get(peak, [])
+
+            sig_df = item["signal"]
+            t = sig_df.iloc[:, 0].values
+            y = sig_df.iloc[:, 1].values
+
+            if ref_idx is None or len(detected) == 0:
+                dx = dy = dxy = np.array([np.nan])
+                peak_count = 0
+                signals_all_detected = False
+            else:
+                t_detected = t[detected]
+                y_detected = y[detected]
+                if np.isscalar(ref_idx):
+                    dx = abs(t_detected - t[ref_idx])
+                    dy = abs(y_detected - y[ref_idx])
+                else:
+                    dx = np.min([abs(t_detected - t[r]) for r in ref_idx], axis=0)
+                    dy = np.min([abs(y_detected - y[r]) for r in ref_idx], axis=0)
+                dxy = np.sqrt(dx**2 + dy**2)
+                peak_count = len(detected)
+
+            row.update({
+                f"Mean_X_Error_{peak}": np.mean(dx),
+                f"Mean_Y_Error_{peak}": np.mean(dy),
+                f"Mean_XY_Error_{peak}": np.mean(dxy),
+                f"Min_XY_Error_{peak}": np.min(dxy),
+                f"Peak_Count_{peak}": peak_count
+            })
+
+        row["Signals_with_all_Peaks"] = int(signals_all_detected)
+        metrics_list.append(row)
+
+    df_metrics = pd.DataFrame(metrics_list)
+
+    # Num_Signals_in_Class = liczba wszystkich plików w klasie
+    df_metrics["Num_Signals_in_Class"] = len(class_signals)
+
+    return df_metrics
+
+
+
+def plot_files_in_class(detection_results, class_name):
+    # Filtrujemy tylko pliki z danej klasy
+    class_files = [item for item in detection_results if item["class"] == class_name]
+    n_files = len(class_files)
+    
+    # Tworzymy siatkę subplots (np. max 3 kolumn)
+    ncols = 5
+    nrows = (n_files + ncols - 1) // ncols
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5*ncols, 3*nrows), squeeze=False)
+    axes = axes.flatten()
+    
+    # Kolory dla pików
+    peak_colors = {'P1': 'red', 'P2': 'green', 'P3': 'blue'}
+    peak_colors_d = {'P1': 'orange', 'P2': 'yellow', 'P3': 'cyan'}
+    
+    for idx, item in enumerate(class_files):
+        ax = axes[idx]
+        df = item["signal"]
+        t = df.iloc[:, 0].values
+        y = df.iloc[:, 1].values
+        
+        # Rysujemy sygnał
+        ax.plot(t, y, color='black', lw=1)
+        
+        # Piki referencyjne
+        for p, ref_idx in item['peaks_ref'].items():
+            ax.scatter(t[ref_idx], y[ref_idx], color=peak_colors[p], marker='o', s=50, alpha=1.0, label=f"{p} ref" if idx==0 else "")
+        
+        # Piki wykryte
+        for p, detected_idx in item['peaks_detected'].items():
+            ax.scatter(t[detected_idx], y[detected_idx], color=peak_colors_d[p], marker='x', s=50, alpha=1.0, label=f"{p} detected" if idx==0 else "")
+        
+        ax.set_title(item['file'])
+        ax.set_xlabel('Sample')
+        ax.set_ylabel('ICP')
+    
+    # Usuń puste subplots
+    for j in range(idx+1, len(axes)):
+        fig.delaxes(axes[j])
+    
+    # Dodaj legendę tylko raz
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper right')
+    fig.tight_layout()
+    plt.show()
 
 
 """
@@ -380,20 +569,28 @@ results_a = run_variant(
     ranges_all_amps=ranges_all_amps
 )
 
+results_combined = combine_peaks_by_file(results_a)
 
-all_metrics = []
+plot_files_in_class(results_combined, "Class1")
+plot_files_in_class(results_combined, "Class2")
+plot_files_in_class(results_combined, "Class3")
+plot_files_in_class(results_combined, "Class2")
 
-for class_name in ["Class1","Class2","Class3"]:
-    for peak_name in ["P1","P2","P3"]:
-        df_metrics = compute_peak_metrics_fixed(results_a, df_variant_a, peak_name, class_name)
-        # dodajemy info o metodzie
-        all_metrics.append(df_metrics) 
+# all_metrics = []
+
+# for class_name in ["Class1","Class2","Class3","Class4"]:
+#         df_metrics = compute_peak_metrics_all_peaks(results_a, class_name)
+#         # dodajemy info o metodzie
+#         all_metrics.append(df_metrics) 
         
-for class_name in ["Class4"]:
-    for peak_name in ["P2"]:
-        df_metrics = compute_peak_metrics_fixed(results_a, df_variant_a, peak_name, class_name)
-        # dodajemy info o metodzie
-        all_metrics.append(df_metrics) 
-        
-df_all_metrics = pd.concat(all_metrics, ignore_index=True)
-df_avg_metrics = df_all_metrics.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
+# # for class_name in ["Class4"]:
+# #     for peak_name in ["P2"]:
+# #         df_metrics = compute_peak_metrics_fixed(results_a, df_variant_a, peak_name, class_name)
+# #         # dodajemy info o metodzie
+# #         all_metrics.append(df_metrics) 
+
+# # for class_name in ["Class1","Class2","Class3","Class4"]:
+# #     df_metrics = compute_peak_metrics_all_peaks_combined(results_a, class_name)
+# #     all_metrics.append(df_metrics)
+# df_all_metrics = pd.concat(all_metrics, ignore_index=True)
+# df_avg_metrics = df_all_metrics.groupby(["Class"]).mean(numeric_only=True).reset_index()
