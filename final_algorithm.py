@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 # from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
 #                     generate_ranges_for_all_files, compute_ranges_avg)
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
+                  it1, it1_smooth_4Hz, it1_smooth_3Hz,
                   ranges_all_time, ranges_all_amps, compute_peak_metrics)
 
 # do sprawdzenia
@@ -549,35 +550,62 @@ def plot_files_in_class(detection_results, class_name):
 
 """
 Class1 P1:
-    a) avg, concave (min blad)
+    a) avg, concave (min blad) 
     b) full, concave (max. signals w/ peaks)
+    
 Class1 P2:
-    a) smooth 4Hz, avg, curvature (min blad)
+    a) smooth 4Hz, avg, curvature (min blad) 
     b) avg, curvature (max signals w/ peaks)   
+    ----------- ZMIANA ----------------------
+        a,b) smooth 4Hz, avg, curvature 
+    
 Class1 P3:
     a,b) smooth 4Hz, full, concave   
 
+    
 Class2 P1:
     a) smooth 3Hz, avg, hilbert (min blad, 249)
     b) smooth 3Hz, avg, wavelet (podobny, 250) SAME_AVG!!!!!!!!!
+    -------- ZMIANA -------------------
+        a,b) smooth 3Hz, avg, hilbert
+    
 Class2 P2:
     a) whiskers, wavelet (min blad)
     b) smooth 4Hz, full, curvature (max sig w/ peaks)
+    ----------- ZMIANA -------------
+    a) smooth 4Hz, whiskers, line distance (vertical lub perpendicular)
+    b) smooth 4Hz, full, line distance (vertical lub perpendicular)
+    
 Class2 P3:
     a) avg, curvature (min blad)
     b) whiskers, hilbert (doslownie o 2 wiecej sig w/ peaks)
+    ----------- ZMIANA -----------
+    a) full, hilbert
+    b) pm3, hilbert
+    
 
 Class3 P1:
     a,b) smooth 4Hz, full, wavelet LUB smooth 4Hz, whiskers, wavelet
+    
 Class3 P2:
     a) whiskers, concave (min blad)
     b) smooth 4Hz, full, concave (max sig)
+    ----------- ZMIANA ------------
+    a) smooth 4Hz, avg, hilbert
+    b) smooth 4Hz, avg, wavelet
+
 Class3 P3:
     a,b) none, modified scholkmann 1/2 99 LUB none, modified scholkmann 1 99
+    ------------ ZMIANA ------------
+    a) full modified scholkmann 1/2 99
+    b) none modified scholkmann 1/2 99
 
 Class4 P2:
     a,b) smooth 4Hz, none, modified scholkmann 1/2 99 LUB smooth 4Hz, none, modified scholkmann 1 99
-
+    ---------- ZMIANA ------------
+    a) full, conncave d2x=0,002
+    b) pm3, concave d2x=0,002
+    
 DALSZE DZIALANIA:
 Class1: 
     - jesli sa dwa P3 to wziac tylko pozniejszy i usunac pierwszy (np. [80, 96] -> [96])
@@ -606,33 +634,91 @@ Class4:
     
 """
 
-datasets = [
-    (it2, "it2"),
-    (it2_smooth_4Hz, "it2_smooth_4Hz"),
-    (it2_smooth_3Hz, "it2_smooth_3Hz"),
-]
+# datasets = [
+#     (it2, "it2"),
+#     (it2_smooth_4Hz, "it2_smooth_4Hz"),
+#     (it2_smooth_3Hz, "it2_smooth_3Hz"),
+# ]
 
 #c1_p1=peak_detection_single(it2, "concave", "Class1", "P1", df_ranges_time.loc["it2", "avg"], None, "avg")
+ # -------------------- lekka krakasa, moznaby rzec ----------------
+# --- wariant a ---
+# df_variant_a = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it2",            "it2",            "avg",  "concave"),
+#     ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it2_smooth_3Hz", "it2_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it2",            "it2",            "whiskers", "wavelet"),
+#     ("Class2", "P3", "it2",            "it2",            "avg",      "curvature"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it2",            "it2",            "whiskers", "concave"),
+#     ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
+
+# # --- wariant b ---
+# df_variant_b = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it2",            "it2",            "full", "concave"),
+#     ("Class1", "P2", "it2",            "it2",            "avg",  "curvature"),
+#     ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it2_smooth_3Hz", "it2",            "avg",  "wavelet"),
+#     ("Class2", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "curvature"),
+#     ("Class2", "P3", "it2",            "it2",            "whiskers", "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full",     "concave"),
+#     ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
 
 # --- wariant a ---
 df_variant_a = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it2",            "it2",            "avg",  "concave"),
-    ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "curvature"),
-    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+    ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),
+    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
 
     # -------- Class2 --------
-    ("Class2", "P1", "it2_smooth_3Hz", "it2_smooth_3Hz", "avg",  "hilbert"),
-    ("Class2", "P2", "it2",            "it2",            "whiskers", "wavelet"),
-    ("Class2", "P3", "it2",            "it2",            "avg",      "curvature"),
+    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
+    ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
 
     # -------- Class3 --------
-    ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it2",            "it2",            "whiskers", "concave"),
-    ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
+    ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
 
     # -------- Class4 --------
-    ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+    ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
 ],
 columns=[
     "class",
@@ -646,22 +732,22 @@ columns=[
 # --- wariant b ---
 df_variant_b = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it2",            "it2",            "full", "concave"),
-    ("Class1", "P2", "it2",            "it2",            "avg",  "curvature"),
-    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+    ("Class1", "P1", "it1",            "it1",            "full", "concave"),
+    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
 
     # -------- Class2 --------
-    ("Class2", "P1", "it2_smooth_3Hz", "it2",            "avg",  "wavelet"),
-    ("Class2", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "curvature"),
-    ("Class2", "P3", "it2",            "it2",            "whiskers", "hilbert"),
+    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
+    ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
 
     # -------- Class3 --------
-    ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full",     "concave"),
-    ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
+    ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
 
     # -------- Class4 --------
-    ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+    ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
 ],
 columns=[
     "class",
@@ -672,12 +758,10 @@ columns=[
     "method"
 ])
 
-# df_a = df_algo[df_algo["variant"] == "a"]
-
 datasets_dict = {
-    "it2": it2,
-    "it2_smooth_4Hz": it2_smooth_4Hz,
-    "it2_smooth_3Hz": it2_smooth_3Hz,
+    "it1": it1,
+    "it1_smooth_4Hz": it1_smooth_4Hz,
+    "it1_smooth_3Hz": it1_smooth_3Hz,
 }
 
 #%% A
@@ -690,24 +774,24 @@ results_a = run_variant(
 
 
 results_combined_a = combine_peaks_by_file(results_a)
-results_combined_a_pp = postprocess_peaks(results_combined_a)
+# results_combined_a_pp = postprocess_peaks(results_combined_a)
 
 
-df_pogladowe_a_pp = pd.DataFrame([
-    {
-        "file": d["file"],
-        "peaks_ref": d["peaks_ref"],
-        "peaks_detected": d["peaks_detected"],
-    }
-    for d in results_combined_a_pp
-])
+# df_pogladowe_a_pp = pd.DataFrame([
+#     {
+#         "file": d["file"],
+#         "peaks_ref": d["peaks_ref"],
+#         "peaks_detected": d["peaks_detected"],
+#     }
+#     for d in results_combined_a
+# ])
 
-mask = df_pogladowe_a_pp["peaks_detected"].apply(
-    lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
-)
+# mask = df_pogladowe_a_pp["peaks_detected"].apply(
+#     lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
+# )
 
-rows_multi_a = df_pogladowe_a_pp[mask]
-print(rows_multi_a)
+# rows_multi_a = df_pogladowe_a_pp[mask]
+# print(rows_multi_a)
 
 # count_a = df_pogladowe_a["peaks_detected"].apply(
 #     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
@@ -735,7 +819,7 @@ results_b = run_variant(
 
 
 results_combined_b = combine_peaks_by_file(results_b)
-results_combined_b_pp = postprocess_peaks(results_combined_b)
+# results_combined_b_pp = postprocess_peaks(results_combined_b)
 
 df_pogladowe_b_pp = pd.DataFrame([
     {
@@ -743,7 +827,7 @@ df_pogladowe_b_pp = pd.DataFrame([
         "peaks_ref": d["peaks_ref"],
         "peaks_detected": d["peaks_detected"],
     }
-    for d in results_combined_b_pp
+    for d in results_combined_b
 ])
 
 mask = df_pogladowe_b_pp["peaks_detected"].apply(
@@ -763,10 +847,10 @@ print(rows_multi_b)
 
 # print(count_b, empty_lists_count_b)
 
-# plot_files_in_class(results_combined_b, "Class1")
-# plot_files_in_class(results_combined_b, "Class2")
-# plot_files_in_class(results_combined_b, "Class3")
-# plot_files_in_class(results_combined_b, "Class4")
+plot_files_in_class(results_combined_b, "Class1")
+plot_files_in_class(results_combined_b, "Class2")
+plot_files_in_class(results_combined_b, "Class3")
+plot_files_in_class(results_combined_b, "Class4")
 
 # all_metrics = []
 

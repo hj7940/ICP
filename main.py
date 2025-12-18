@@ -445,6 +445,61 @@ if __name__ == "__main__":
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it2_85_same_avg.csv", sep=' ', index=False)
     
+    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    
+    dfs_avg = []
+    for config_name, method_dict in it1_results.items():
+        for method_name, (df_all, df_avg) in method_dict.items():
+            df = df_avg.copy()
+            df["Config"] = f"{config_name}_{method_name}"
+            dfs_avg.append(df)
+    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    
+    
+    peaks = ["P1","P2","P3"]
+    classes = ["Class1","Class2","Class3","Class4"]
+    
+    top_xy_dfs = {}
+    top_minxy_dfs = {}
+    
+    min_fraction = 0.85
+    # max_XY_Error = 30
+    
+    # Tworzenie osobnych DF-ów
+    for class_id in classes:
+        for pk in peaks:
+            # --- filtr po udziale sygnałów ---
+            df_filtered = df_it1_avg[
+                (df_it1_avg["Peak"] == pk) &
+                (df_it1_avg["Class"] == class_id) &
+                (df_it1_avg["Num_Signals_with_Peak"] / df_it1_avg["Num_Signals_in_Class"] >= min_fraction)
+                #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+                #(df_it1_avg["Peak_Count"] <= 10)
+            ].copy()
+            
+            error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+            
+            df_filtered[error_cols] = df_filtered[error_cols].round(10)
+            #print(df_filtered.columns.tolist())
+            df_merged = merge_identical_configs_before_top(df_filtered)
+            
+            # --- Mean_XY_Error ---
+            df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+            top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+    
+            # --- Min_XY_Error ---
+            df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+            top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+    
+    cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    
+    df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_85.csv", sep=' ', index=False)
+    
+    df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
+    df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_85.csv", sep=' ', index=False)
+    
+    
     
     # test_avg = peak_detection(
     #     dataset=it1,
