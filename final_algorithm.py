@@ -35,6 +35,7 @@ import matplotlib.pyplot as plt
 #                     generate_ranges_for_all_files, compute_ranges_avg)
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   ranges_all_time, ranges_all_amps, compute_peak_metrics)
+
 # do sprawdzenia
 def peak_detection_single(dataset, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
     """
@@ -272,6 +273,121 @@ def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
     # Zamiana słownika na listę słowników
     return list(combined.values())
 
+
+
+def postprocess_peaks(results_combined):
+    """
+    Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
+    Działa na kopii results_combined (nie in-place).
+    """
+
+    results_post=results_combined
+
+    for item in results_post:
+        class_id = item["class"]
+        peaks = item["peaks_detected"]
+
+        # pomocnicze
+        def mean_peak(p):
+            return [float(np.mean(p))] if len(p) > 0 else []
+
+        def first_peak(p):
+            return [p[0]] if len(p) > 0 else []
+
+        def last_peak(p):
+            return [p[-1]] if len(p) > 0 else []
+
+        # =========================
+        # -------- Class1 ---------
+        # =========================
+        if class_id == "Class1":
+            # P3: jeśli dwa → zostaw późniejszy
+            peaks["P3"] = last_peak(peaks["P3"])
+
+            # P1: jeśli kilka → średnia
+            peaks["P1"] = mean_peak(peaks["P1"])
+
+            # P2: bez redukcji na tym etapie
+
+            # jeśli P2 i P3 zbyt blisko → usuń oba
+            if peaks["P2"] and peaks["P3"]:
+                if abs(peaks["P3"][0] - peaks["P2"][0]) <= 3:
+                    peaks["P2"] = []
+                    peaks["P3"] = []
+            
+            # --- NOWY WARUNEK (Class1): P3 pomiędzy dwoma P2 ---
+            if len(peaks["P2"]) == 2 and len(peaks["P3"]) == 1:
+                x, y = min(peaks["P2"]), max(peaks["P2"])
+                z = peaks["P3"][0]
+                if x < z < y:
+                    peaks["P2"] = []
+            
+            # warunek P1 < P2 < P3
+            if peaks["P1"] and peaks["P2"] and peaks["P3"]:
+                if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
+                    # jeśli P3 jest najpóźniejszy → zostaw tylko P3
+                    if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
+                        peaks["P1"] = []
+                        peaks["P2"] = []
+                    else:
+                        peaks["P1"] = []
+                        peaks["P2"] = []
+                        peaks["P3"] = []
+
+        # =========================
+        # -------- Class2 ---------
+        # =========================
+        elif class_id == "Class2":
+            # P3: średnia
+            peaks["P3"] = mean_peak(peaks["P3"])
+
+            # P2: pierwszy
+            peaks["P2"] = first_peak(peaks["P2"])
+
+            # P1: pierwszy
+            peaks["P1"] = first_peak(peaks["P1"])
+
+            # warunek P1 < P2 < P3
+            if peaks["P1"] and peaks["P2"] and peaks["P3"]:
+                if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
+                    if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
+                        peaks["P1"] = []
+                        peaks["P2"] = []
+                    else:
+                        peaks["P1"] = []
+                        peaks["P2"] = []
+                        peaks["P3"] = []
+
+        # =========================
+        # -------- Class3 ---------
+        # =========================
+        elif class_id == "Class3":
+            # P3: średnia
+            peaks["P3"] = mean_peak(peaks["P3"])
+
+            # P1: średnia
+            peaks["P1"] = mean_peak(peaks["P1"])
+
+            # P2: pierwszy
+            peaks["P2"] = first_peak(peaks["P2"])
+
+            # jeśli P2 i P3 zbyt blisko → usuń P3
+            if peaks["P2"] and peaks["P3"]:
+                if abs(peaks["P3"][0] - peaks["P2"][0]) <= 3:
+                    peaks["P3"] = []
+
+        # =========================
+        # -------- Class4 ---------
+        # =========================
+        elif class_id == "Class4":
+            # tylko P2, jeśli kilka → średnia
+            peaks["P2"] = mean_peak(peaks["P2"])
+            peaks["P1"] = []
+            peaks["P3"] = []
+
+    return results_post
+
+
 def compute_peak_metrics_all_peaks(detection_results, class_name):
     """
     Łączy metryki wszystkich pików P1, P2, P3 dla każdego pliku/metody.
@@ -385,14 +501,38 @@ def plot_files_in_class(detection_results, class_name):
         # Rysujemy sygnał
         ax.plot(t, y, color='black', lw=1)
         
-        # Piki referencyjne
-        for p, ref_idx in item['peaks_ref'].items():
-            ax.scatter(t[ref_idx], y[ref_idx], color=peak_colors[p], marker='o', s=50, alpha=1.0, label=f"{p} ref" if idx==0 else "")
-        
-        # Piki wykryte
-        for p, detected_idx in item['peaks_detected'].items():
-            ax.scatter(t[detected_idx], y[detected_idx], color=peak_colors_d[p], marker='x', s=50, alpha=1.0, label=f"{p} detected" if idx==0 else "")
-        
+        for p, ref_idx in item.get("peaks_ref", {}).items(): 
+            if ref_idx is None or (isinstance(ref_idx, float) and np.isnan(ref_idx)):
+                continue  # ← tutaj zmiana
+            if isinstance(ref_idx, (list, tuple, np.ndarray)):
+                ref_idx = list(ref_idx)
+            else:
+                ref_idx = [ref_idx]  # ← tutaj zmiana
+
+            ax.scatter(
+                t[ref_idx],
+                y[ref_idx],
+                color=peak_colors.get(p, "gray"),
+                marker="o",
+                s=60,
+                alpha=1.0,
+                label=f"{p} ref" if idx == 0 else "",
+            )
+
+        # ===== PIKI WYKRYTE =====
+        for p, detected_idx in item.get("peaks_detected", {}).items(): 
+            if not detected_idx:
+                continue 
+
+            ax.scatter(
+                t[detected_idx],
+                y[detected_idx],
+                color=peak_colors_d.get(p, "gray"),
+                marker="x",
+                s=60,
+                alpha=1.0,
+                label=f"{p} detected" if idx == 0 else "",
+            )
         ax.set_title(item['file'])
         ax.set_xlabel('Sample')
         ax.set_ylabel('ICP')
@@ -407,92 +547,70 @@ def plot_files_in_class(detection_results, class_name):
     fig.tight_layout()
     plt.show()
 
-
 """
 Class1 P1:
     a) avg, concave (min blad)
     b) full, concave (max. signals w/ peaks)
-
 Class1 P2:
     a) smooth 4Hz, avg, curvature (min blad)
-    b) avg, curvature (max signals w/ peaks)
-    
+    b) avg, curvature (max signals w/ peaks)   
 Class1 P3:
-    a,b) smooth 4Hz, full, concave
-    
+    a,b) smooth 4Hz, full, concave   
 
 Class2 P1:
     a) smooth 3Hz, avg, hilbert (min blad, 249)
     b) smooth 3Hz, avg, wavelet (podobny, 250) SAME_AVG!!!!!!!!!
-
 Class2 P2:
     a) whiskers, wavelet (min blad)
     b) smooth 4Hz, full, curvature (max sig w/ peaks)
-
 Class2 P3:
     a) avg, curvature (min blad)
     b) whiskers, hilbert (doslownie o 2 wiecej sig w/ peaks)
 
 Class3 P1:
     a,b) smooth 4Hz, full, wavelet LUB smooth 4Hz, whiskers, wavelet
-
 Class3 P2:
     a) whiskers, concave (min blad)
     b) smooth 4Hz, full, concave (max sig)
-
 Class3 P3:
     a,b) none, modified scholkmann 1/2 99 LUB none, modified scholkmann 1 99
 
 Class4 P2:
     a,b) smooth 4Hz, none, modified scholkmann 1/2 99 LUB smooth 4Hz, none, modified scholkmann 1 99
-"""
 
+DALSZE DZIALANIA:
+Class1: 
+    - jesli sa dwa P3 to wziac tylko pozniejszy i usunac pierwszy (np. [80, 96] -> [96])
+    - jesli P2 i P3 sa w odleglosci mniejszej niz 3 probki to usun P2 i P3 (zostaw puste listy)
+    - jesli kilka P1 to srednia 
+    PO WYKONANIU TYCH OPERCAJI:
+    - jesli nie jest spelniony warunek P1<P2<P3 (na osi X!) to usun P1, P2 i P3
+    (jesli P1>P2 ale P3 jest najpozniejsze to zostaw P3)
+    
+Class2:
+    - jesli jest kilka P3 to srednia
+    - jesli jest kilka P2 to wziac pierwszy
+    - jesli sa dwa/kilka P1 to wziac pierwszy
+    PO WYKONANIU TYCH OPERCAJI:
+    - jesli nie jest spelniony warunek P1<P2<P3 (na osi X!) to usun P1, P2 i P3
+    (jesli P1>P2 ale P3 jest najpozniejsze to zostaw P3)
+    
+Class3:
+    - jesli jest kilka P3 to srednia
+    - jesli jest kilka P1 to srednia
+    - jesli jest kilka P2 to wziac pierwszy
+    - jesli P2 i P3 sa w odleglosci mniejszej niz 3 probki to usun P3
+    
+Class4:
+    - jesli jest kilka P2 to srednia
+    
+"""
 
 datasets = [
     (it2, "it2"),
     (it2_smooth_4Hz, "it2_smooth_4Hz"),
     (it2_smooth_3Hz, "it2_smooth_3Hz"),
 ]
-
-# %% ranges
-#base_dataset = it2
-
-# ranges_all_time = {}
-# for dataset, dataset_name in datasets:
-#     ranges_all_time[dataset_name] = {}
-
-#     for range_type, range_name in (
-#         (ranges_full, "full"),
-#         (ranges_pm3, "pm3"),
-#         (ranges_whiskers, "whiskers"),
-#     ):
-#         (time, amp) = generate_ranges_for_all_files(dataset, range_type)
-#         ranges_all_time[dataset_name][range_name] = time
-#     # avg liczymy ZAWSZE z bazowego datasetu
-#     ranges_all_time[dataset_name]["avg"] = compute_ranges_avg(dataset)
-# df_ranges_time = pd.DataFrame.from_dict(ranges_all_time, orient="index")
-
-# # only_two_avg_ranges = {}
-# # for dataset, dataset_name in datasets:
-# #     only_two_avg_ranges[dataset_name] = {}
-# #     only_two_avg_ranges[dataset_name]["avg"] = compute_ranges_avg(base_dataset)
-# # df_only_two_avg_ranges = pd.DataFrame.from_dict(only_two_avg_ranges, orient="index")    
-
-# ranges_all_amps = {}
-# for dataset, dataset_name in datasets:
-#     ranges_all_amps[dataset_name] = {}
-
-#     for range_type, range_name in (
-#         (ranges_full, "full"),
-#         (ranges_pm3, "pm3"),
-#         (ranges_whiskers, "whiskers"),
-#     ):
-#         (time, amp) = generate_ranges_for_all_files(dataset, range_type)
-#         ranges_all_amps[dataset_name][range_name] = amp
-            
-# df_ranges_amps = pd.DataFrame.from_dict(ranges_all_amps, orient="index")
-
-# %% minimalizajca bledu
 
 #c1_p1=peak_detection_single(it2, "concave", "Class1", "P1", df_ranges_time.loc["it2", "avg"], None, "avg")
 
@@ -562,6 +680,7 @@ datasets_dict = {
     "it2_smooth_3Hz": it2_smooth_3Hz,
 }
 
+#%% A
 results_a = run_variant(
     df_variant_a,
     datasets_dict=datasets_dict,
@@ -569,12 +688,85 @@ results_a = run_variant(
     ranges_all_amps=ranges_all_amps
 )
 
-results_combined = combine_peaks_by_file(results_a)
 
-plot_files_in_class(results_combined, "Class1")
-plot_files_in_class(results_combined, "Class2")
-plot_files_in_class(results_combined, "Class3")
-plot_files_in_class(results_combined, "Class2")
+results_combined_a = combine_peaks_by_file(results_a)
+results_combined_a_pp = postprocess_peaks(results_combined_a)
+
+
+df_pogladowe_a_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_a_pp
+])
+
+mask = df_pogladowe_a_pp["peaks_detected"].apply(
+    lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
+)
+
+rows_multi_a = df_pogladowe_a_pp[mask]
+print(rows_multi_a)
+
+# count_a = df_pogladowe_a["peaks_detected"].apply(
+#     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
+# ).sum()
+
+# empty_lists_count_a = df_pogladowe_a["peaks_detected"].apply(
+#     lambda d: (len(d["P1"]) == 0) + (len(d["P2"]) == 0) + (len(d["P3"]) == 0)
+# ).sum()
+
+# print(count_a, empty_lists_count_a)
+
+
+# plot_files_in_class(results_combined, "Class1")
+# plot_files_in_class(results_combined, "Class2")
+# plot_files_in_class(results_combined, "Class3")
+# plot_files_in_class(results_combined, "Class4")
+
+# %% B
+results_b = run_variant(
+    df_variant_a,
+    datasets_dict=datasets_dict,
+    ranges_all_time=ranges_all_time,
+    ranges_all_amps=ranges_all_amps
+)
+
+
+results_combined_b = combine_peaks_by_file(results_b)
+results_combined_b_pp = postprocess_peaks(results_combined_b)
+
+df_pogladowe_b_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_b_pp
+])
+
+mask = df_pogladowe_b_pp["peaks_detected"].apply(
+    lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
+)
+
+rows_multi_b = df_pogladowe_b_pp[mask]
+print(rows_multi_b)
+
+# count_b = df_pogladowe_b["peaks_detected"].apply(
+#     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
+# ).sum()
+
+# empty_lists_count_b = df_pogladowe_b["peaks_detected"].apply(
+#     lambda d: (len(d["P1"]) == 0) + (len(d["P2"]) == 0) + (len(d["P3"]) == 0)
+# ).sum()
+
+# print(count_b, empty_lists_count_b)
+
+# plot_files_in_class(results_combined_b, "Class1")
+# plot_files_in_class(results_combined_b, "Class2")
+# plot_files_in_class(results_combined_b, "Class3")
+# plot_files_in_class(results_combined_b, "Class4")
 
 # all_metrics = []
 
