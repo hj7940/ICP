@@ -244,3 +244,137 @@ def load_data_it2(base_path):
             })
 
     return dataset
+
+
+from matplotlib_venn import venn3, venn3_unweighted 
+from matplotlib import colors as mcolors
+def plot_venn_for_class(results_combined, class_name, ax=None):
+    """
+    Diagram Venna dla P1, P2, P3 w danej klasie
+    """
+
+    # liczniki
+    only_P1 = only_P2 = only_P3 = 0
+    P1_P2 = P1_P3 = P2_P3 = 0
+    P1_P2_P3 = 0
+
+    for item in results_combined:
+        if item["class"] != class_name:
+            continue
+
+        p = item["peaks_detected"]
+
+        has_P1 = not (p["P1"] is None or (isinstance(p["P1"], float) and math.isnan(p["P1"])))
+        has_P2 = not (p["P2"] is None or (isinstance(p["P2"], float) and math.isnan(p["P2"])))
+        has_P3 = not (p["P3"] is None or (isinstance(p["P3"], float) and math.isnan(p["P3"])))
+
+        if has_P1 and not has_P2 and not has_P3:
+            only_P1 += 1
+        elif has_P2 and not has_P1 and not has_P3:
+            only_P2 += 1
+        elif has_P3 and not has_P1 and not has_P2:
+            only_P3 += 1
+        elif has_P1 and has_P2 and not has_P3:
+            P1_P2 += 1
+        elif has_P1 and has_P3 and not has_P2:
+            P1_P3 += 1
+        elif has_P2 and has_P3 and not has_P1:
+            P2_P3 += 1
+        elif has_P1 and has_P2 and has_P3:
+            P1_P2_P3 += 1
+    
+    # oryginalne wartości
+    original_counts = (only_P1, only_P2, P1_P2,
+                       only_P3, P1_P3, P2_P3, P1_P2_P3)
+    
+    # skalowanie wizualne: pierwiastek z liczby, aby zbliżyć wielkości kół
+    scaled_counts = tuple(c**0.001 if c>0 else 0 for c in original_counts)
+    # funkcja wyświetlająca ORYGINALNE liczby
+    
+    def label_formatter(scaled_value, original_values=original_counts, scaled_values=scaled_counts):
+    # znajdź indeks scaled_value w scaled_counts i zwróć odpowiadającą wartość z original_counts
+        try:
+            idx = scaled_values.index(scaled_value)
+            return str(original_values[idx])
+        except ValueError:
+            return str(int(round(scaled_value)))
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        
+    v = venn3(
+        subsets=scaled_counts,
+        set_labels=("P1", "P2", "P3"),
+        ax=ax,
+        subset_label_formatter=label_formatter
+    )
+    
+        # tylko P1
+    if v.get_patch_by_id("100") is not None:
+        v.get_patch_by_id("100").set_color('red')
+        v.get_patch_by_id("100").set_alpha(0.55)
+        v.get_patch_by_id('100').set_edgecolor('none')
+    # tylko P2
+    if v.get_patch_by_id("010") is not None:
+        v.get_patch_by_id("010").set_color('green')
+        v.get_patch_by_id("010").set_alpha(0.55)
+        v.get_patch_by_id('010').set_edgecolor('none')
+    # tylko P3
+    if v.get_patch_by_id("001") is not None:
+        v.get_patch_by_id("001").set_color('deepskyblue')
+        v.get_patch_by_id("001").set_alpha(0.55)
+        v.get_patch_by_id('001').set_edgecolor('none')
+    # P1+P2
+    if v.get_patch_by_id("110") is not None:
+        v.get_patch_by_id("110").set_color('saddlebrown')
+        v.get_patch_by_id("110").set_alpha(0.55)
+        v.get_patch_by_id('110').set_edgecolor('none')
+    # P1+P3
+    if v.get_patch_by_id("101") is not None:
+        v.get_patch_by_id("101").set_color('darkviolet')
+        v.get_patch_by_id("101").set_alpha(0.55)
+        v.get_patch_by_id('101').set_edgecolor('none')
+    # P2+P3
+    if v.get_patch_by_id("011") is not None:
+        v.get_patch_by_id("011").set_color('mediumspringgreen')
+        v.get_patch_by_id("011").set_alpha(0.55)
+        v.get_patch_by_id('011').set_edgecolor('none')
+    # P1+P2+P3
+    if v.get_patch_by_id("111") is not None:
+        v.get_patch_by_id("111").set_color('grey')
+        v.get_patch_by_id("111").set_alpha(0.55)
+        v.get_patch_by_id('111').set_edgecolor('none')
+    
+
+    # podstawowe kolory z matplotlib
+    c_red   = mcolors.to_rgb("tomato")   # P1
+    c_green = mcolors.to_rgb("limegreen")# P2
+    c_blue  = mcolors.to_rgb("dodgerblue") # P3
+    
+    # mieszanki addytywne
+    def mix_colors(*cols):
+        r = sum(c[0] for c in cols)
+        g = sum(c[1] for c in cols)
+        b = sum(c[2] for c in cols)
+        # normalizacja do max 1
+        m = max(r,g,b)
+        if m>1: r,g,b = r/m, g/m, b/m
+        return (r,g,b,0.75)  # dodajemy alpha
+    
+    # ustawienie kolorów ręcznie
+    if v.get_patch_by_id("100") is not None:  # P1
+        v.get_patch_by_id("100").set_color(c_red + (0.75,))
+    if v.get_patch_by_id("010") is not None:  # P2
+        v.get_patch_by_id("010").set_color(c_green + (0.75,))
+    if v.get_patch_by_id("001") is not None:  # P3
+        v.get_patch_by_id("001").set_color(c_blue + (0.75,))
+    if v.get_patch_by_id("110") is not None:  # P1+P2
+        v.get_patch_by_id("110").set_color(mix_colors(c_red, c_green))
+    if v.get_patch_by_id("101") is not None:  # P1+P3
+        v.get_patch_by_id("101").set_color(mix_colors(c_red, c_blue))
+    if v.get_patch_by_id("011") is not None:  # P2+P3
+        v.get_patch_by_id("011").set_color(mix_colors(c_green, c_blue))
+    if v.get_patch_by_id("111") is not None:  # P1+P2+P3
+        v.get_patch_by_id("111").set_color(mix_colors(c_red, c_green, c_blue))
+
+    ax.set_title(class_name)
