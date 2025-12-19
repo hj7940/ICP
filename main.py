@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from data_handling import load_dataset, smooth_dataset
-from methods import (concave, curvature, modified_scholkmann, 
+from methods import (concave, curvature, modified_scholkmann, modified_scholkmann_old, 
                      line_distance, hilbert_envelope, wavelet)
 from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
                     generate_ranges_for_all_files, compute_ranges_avg)
@@ -306,10 +306,10 @@ all_methods = {
     "concave_d2x=-0-002": lambda sig:  concave(sig, -0.002, 0, None),
     "concave_d2x=0-002": lambda sig:  concave(sig, 0.002, 0, None),
     
-    "modified_scholkmann_1_99": lambda sig: modified_scholkmann(sig, 1, 99),
-    "modified_scholkmann_1_95": lambda sig: modified_scholkmann(sig, 1, 95),
-    "modified_scholkmann_1-2_95": lambda sig: modified_scholkmann(sig, 2, 95),
-    "modified_scholkmann_1-2_99": lambda sig: modified_scholkmann(sig, 2, 99),
+    "modified_scholkmann_1_99": lambda sig: modified_scholkmann_old(sig, 1, 99),
+    "modified_scholkmann_1_95": lambda sig: modified_scholkmann_old(sig, 1, 95),
+    "modified_scholkmann_1-2_95": lambda sig: modified_scholkmann_old(sig, 2, 95),
+    "modified_scholkmann_1-2_99": lambda sig: modified_scholkmann_old(sig, 2, 99),
     
     "curvature": lambda sig: curvature(sig, 0, 0, None),
     "line_distance_10": lambda sig: line_distance(sig, 0,"vertical", 10),

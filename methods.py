@@ -62,7 +62,7 @@ def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
     return np.array(concave_peaks)
 
 
-def modified_scholkmann(signal, scale=1, threshold=99):
+def modified_scholkmann_old(signal, scale=1, threshold=99):
     """
     Zmodyfikowana metoda Scholkmanna do detekcji pików.
     
@@ -109,6 +109,72 @@ def modified_scholkmann(signal, scale=1, threshold=99):
     # Piki = punkty, które były maksimum w wielu skalach
     threshold = np.percentile(maxima_strength, threshold)  # tylko te najstabilniejsze
     peaks = np.where(maxima_strength >= threshold)[0]
+
+    return np.array(peaks)
+
+def modified_scholkmann(signal, limit=0.5):
+    """
+    Zmodyfikowana metoda Scholkmanna do detekcji pików.
+    
+    Algorytm identyfikuje lokalne maksima w wielu skalach i wybiera
+    te punkty, które pozostają maksimami w największej liczbie skal
+    (stabilne piki).
+    
+    Parameters
+    ----------
+    signal : np.ndarray
+        Jednowymiarowy sygnał wejściowy.
+    scale : int, optional
+        Parametr skali wpływający na maksymalny rozmiar analizowanego
+        sąsiedztwa. Domyślnie 1.
+    threshold : float, optional
+        Percentyl (0–100) liczby wystąpień maksimum w skalach,
+        powyżej którego punkt jest uznany za pik.
+        Domyślnie 99.
+    
+    Returns
+    -------
+    np.ndarray
+        Indeksy wykrytych pików
+    """
+
+    N = len(signal)
+    
+    # detrending
+    t = np.arange(N)
+    trend = np.polyval(np.polyfit(t, signal, 1), t)
+    x = signal - trend
+    
+    L = int(np.ceil(N * limit / 2.0)) - 1
+    
+    gamma = np.zeros(L)
+    lms_bool = np.zeros((L, N), dtype=bool)
+
+    #  macierz lokalnych maksimów
+    for k in range(1, L + 1):
+        # Skrócony zapis wektorowy zamiast pętli po t:
+        # Sprawdzamy: x[i-k] < x[i] > x[i+k]
+        condition = (x[k:N-k] > x[0:N-2*k]) & (x[k:N-k] > x[2*k:N])
+        lms_bool[k-1, k:N-k] = condition
+        
+        # W klasycznym AMPD w macierzy LMS: 0 = peak, 1 = non-peak
+        # Policzmy sumę "nie-pików" w wierszu
+        gamma[k-1] = np.sum(~lms_bool[k-1, :])
+
+    # 4. Znalezienie skali 'p'
+    # p to indeks wiersza, w którym występuje najwięcej lokalnych maksimów
+    p = np.argmin(gamma)
+    
+    # 5. Selekcja końcowa pików
+    # Pikiem jest punkt, który był pikiem we WSZYSTKICH skalach od 1 do p
+    # (Suma kolumn w zakresie 0:p musi wynosić 0 w notacji 0/1, 
+    #  lub p w naszej notacji boolowskiej True/False)
+    
+    # Sumujemy kolumny tylko do wiersza p
+    column_sum = np.sum(lms_bool[:p, :], axis=0)
+    
+    # Punkt jest pikiem, jeśli we wszystkich p skalach był maksimum
+    peaks = np.where(column_sum == p)[0]
 
     return np.array(peaks)
 

@@ -15,10 +15,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# def has_peak(v):
-#     """Zwraca True, jeśli pik jest wykryty (nie NaN)."""
-#     return v is not None and not math.isnan(v)
-
 def has_peak(v):
     """Zwraca True, jeśli pik jest wykryty (nie NaN, nie pusta lista)."""
     if v is None:
@@ -37,48 +33,7 @@ def peak_signature(peaks):
     return tuple(p for p in ["P1", "P2", "P3"] if has_peak(peaks.get(p)))
 
 
-def plot_upset_for_class(results_combined, class_name):
-    # zbieramy raw combo counts
-    combos = [peak_signature(r["peaks_detected"]) for r in results_combined if r["class"] == class_name]
-
-    # wszystkie możliwe kombinacje trzech kategorii
-    all_combos = []
-    for r in itertools.product([False, True], repeat=3):
-        # tuple np. (True,False,True) -> maska
-        combo_names = tuple(c for flag, c in zip(r, ["P1","P2","P3"]) if flag)
-        all_combos.append(combo_names)
-
-    # zlicz
-    counts = Counter(combos)
-
-    # budujemy serię z MultiIndex
-    index = []
-    values = []
-    for combo in all_combos:
-        # bool tuple do indeksu
-        bool_idx = tuple([c in combo for c in ["P1","P2","P3"]])
-        index.append(bool_idx)
-        values.append(counts.get(combo, 0))
-        
-
-    index = pd.MultiIndex.from_tuples(index, names=["P1","P2","P3"][::-1])
-    series = pd.Series(values, index=index)
-
-    # teraz UpSet
-    plt.figure(figsize=(6,4))
-    u = UpSet(series, show_counts=True).plot()
     
-    plt.suptitle(f"Diagram UpSet – Klasa {class_name[-1]}", fontsize=12)
-    for ax in plt.gcf().axes:
-        if ax.get_ylabel() == "Intersection size":
-            ax.set_ylabel("Liczba sygnałów", fontsize=8)
-        if ax.get_xlabel() == "None":
-            ax.set_xlabel("Liczba wykryć piku")  # usuwa niepotrzebne etykiety
-    u['totals'].set_xlabel("Liczba wykryć piku", fontsize=8)
-    plt.show()
-    
-
-
 def plot_upset_classic_postproc(results_pp, class_name):
     rows = []
 
@@ -208,4 +163,137 @@ def plot_files_in_class(detection_results, class_name):
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper right')
     fig.tight_layout()
+    plt.show()
+    
+    
+def plot_signal_pre_post(
+    results_combined,
+    results_combined_pp,
+    file_name
+):
+    """
+    Wykres sygnału z pikami:
+    [ PRZED POSTPROCESSINGIEM ] [ PO POSTPROCESSINGU ]
+    Styl zgodny z przykładem z prezentacji.
+    """
+
+    pre = next(d for d in results_combined if d["file"] == file_name)
+    post = next(d for d in results_combined_pp if d["file"] == file_name)
+
+    sig = pre["signal"]
+    t = sig.iloc[:, 0].values
+    y = sig.iloc[:, 1].values
+
+    # kolory pików
+    peak_colors = {'P1': 'red', 'P2': 'green', 'P3': 'blue'}
+    peak_colors_d = {'P1': 'orange', 'P2': 'yellow', 'P3': 'cyan'}
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+
+    # =========================
+    # -------- PRZED ----------
+    # =========================
+    ax = axes[0]
+    ax.plot(t, y, color="black", linewidth=1.5)
+
+    for peak, color in peak_colors.items():
+        # referencyjne
+        ref = pre["peaks_ref"].get(peak)
+        if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
+                    label=f"{peak} – referencyjny")
+
+        # wykryte (lista)
+        det = pre["peaks_detected"].get(peak, [])
+        for i in det:
+            ax.plot(t[i], y[i], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
+                    markeredgewidth=2,
+                    label=f"{peak} – wykryty")
+
+    ax.set_title("Przed postprocessingiem")
+    ax.set_xlabel("Numer próbki")
+    ax.set_ylabel("Amplituda")
+    ax.legend(loc="upper right", fontsize=7)
+
+    # =========================
+    # ---------- PO -----------
+    # =========================
+    ax = axes[1]
+    ax.plot(t, y, color="black", linewidth=1.5)
+
+    for peak, color in peak_colors.items():
+        # referencyjne
+        ref = post["peaks_ref"].get(peak)
+        if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
+                    label=f"{peak} – referencyjny")
+
+        # wykryte (po postproc: int lub NaN)
+        det = post["peaks_detected"].get(peak)
+        if det is not None and not (isinstance(det, float) and math.isnan(det)):
+            ax.plot(t[det], y[det], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
+                    markeredgewidth=2,
+                    label=f"{peak} – wykryty")
+
+    ax.set_title("Po postprocessingu")
+    ax.set_xlabel("Numer próbki")
+    ax.legend(loc="upper right", fontsize=7)
+
+    fig.suptitle(file_name, fontsize=14)
+    plt.tight_layout()
+    plt.show()
+    
+    
+
+def plot_signal_with_concave_areas(dataset, filename):
+    # znajdź element w dataset o podanej nazwie pliku
+    item = next((d for d in dataset if d["file"] == filename), None)
+    if item is None:
+        raise ValueError(f"Nie znaleziono pliku {filename} w dataset")
+
+    sig_df = item["signal"]
+    y = sig_df.iloc[:, 1].values
+    t = sig_df.iloc[:, 0].values
+
+    # oblicz pochodne
+    dy = np.gradient(y, edge_order=2)
+    d2y = np.gradient(dy, edge_order=2)
+
+    # maski dla obszarów wklęsłych i wypukłych
+    concave_mask = d2y < 0  # wklęsłe
+    convex_mask = d2y >= 0  # wypukłe
+
+    # funkcja pomocnicza do znajdowania granic regionów
+    def regions(mask):
+        mask_diff = np.diff(mask.astype(int))
+        starts = np.where(mask_diff == 1)[0] + 1
+        ends = np.where(mask_diff == -1)[0]
+        if mask[0]:
+            starts = np.insert(starts, 0, 0)
+        if mask[-1]:
+            ends = np.append(ends, len(mask)-1)
+        return list(zip(starts, ends))
+
+    concave_regions = regions(concave_mask)
+    convex_regions = regions(convex_mask)
+
+    # rysowanie
+    plt.figure(figsize=(12, 5))
+    plt.plot(t, y, color='black', label='Sygnał')
+
+    for start, end in concave_regions:
+        plt.axvspan(t[start], t[end], color='teal', alpha=0.3)
+        plt.text((t[start]+t[end])/2, max(y), 
+                 f"d1: {np.mean(dy[start:end]):.3f}\nd2: {np.mean(d2y[start:end]):.3f}", 
+                 ha='center', va='bottom', fontsize=8, color='teal')
+
+    for start, end in convex_regions:
+        plt.axvspan(t[start], t[end], color='purple', alpha=0.3)
+        plt.text((t[start]+t[end])/2, min(y), 
+                 f"d1: {np.mean(dy[start:end]):.3f}\nd2: {np.mean(d2y[start:end]):.3f}", 
+                 ha='center', va='top', fontsize=8, color='purple')
+
+    plt.xlabel("Numer próbki")
+    plt.ylabel("Amplituda")
+    plt.title(f"Sygnał {filename} z obszarami wklęsłymi (teal) i wypukłymi (fiolet)")
     plt.show()
