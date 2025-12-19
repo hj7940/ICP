@@ -761,7 +761,86 @@ def plot_venn_for_class(results_combined, class_name, ax=None):
         v.get_patch_by_id("111").set_color(mix_colors(c_red, c_green, c_blue))
 
     ax.set_title(class_name)    
+ 
     
+def plot_signal_pre_post_styled(
+    results_combined,
+    results_combined_pp,
+    file_name
+):
+    """
+    Wykres sygnału z pikami:
+    [ PRZED POSTPROCESSINGIEM ] [ PO POSTPROCESSINGU ]
+    Styl zgodny z przykładem z prezentacji.
+    """
+
+    pre = next(d for d in results_combined if d["file"] == file_name)
+    post = next(d for d in results_combined_pp if d["file"] == file_name)
+
+    sig = pre["signal"]
+    t = sig.iloc[:, 0].values
+    y = sig.iloc[:, 1].values
+
+    # kolory pików
+    peak_colors = {'P1': 'red', 'P2': 'green', 'P3': 'blue'}
+    peak_colors_d = {'P1': 'orange', 'P2': 'yellow', 'P3': 'cyan'}
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+
+    # =========================
+    # -------- PRZED ----------
+    # =========================
+    ax = axes[0]
+    ax.plot(t, y, color="black", linewidth=1.5)
+
+    for peak, color in peak_colors.items():
+        # referencyjne
+        ref = pre["peaks_ref"].get(peak)
+        if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
+                    label=f"{peak} – referencyjny")
+
+        # wykryte (lista)
+        det = pre["peaks_detected"].get(peak, [])
+        for i in det:
+            ax.plot(t[i], y[i], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
+                    markeredgewidth=2,
+                    label=f"{peak} – wykryty")
+
+    ax.set_title("Przed postprocessingiem")
+    ax.set_xlabel("Numer próbki")
+    ax.set_ylabel("Amplituda")
+    ax.legend(loc="upper right", fontsize=7)
+
+    # =========================
+    # ---------- PO -----------
+    # =========================
+    ax = axes[1]
+    ax.plot(t, y, color="black", linewidth=1.5)
+
+    for peak, color in peak_colors.items():
+        # referencyjne
+        ref = post["peaks_ref"].get(peak)
+        if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
+                    label=f"{peak} – referencyjny")
+
+        # wykryte (po postproc: int lub NaN)
+        det = post["peaks_detected"].get(peak)
+        if det is not None and not (isinstance(det, float) and math.isnan(det)):
+            ax.plot(t[det], y[det], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
+                    markeredgewidth=2,
+                    label=f"{peak} – wykryty")
+
+    ax.set_title("Po postprocessingu")
+    ax.set_xlabel("Numer próbki")
+    ax.legend(loc="upper right", fontsize=7)
+
+    fig.suptitle(file_name, fontsize=14)
+    plt.tight_layout()
+    plt.show()
+
+
 """
 Class1 P1:
     a) avg, concave (min blad) 
@@ -853,22 +932,22 @@ Class4:
 # --- wariant a ---
 df_variant_a = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it2",            "it2",            "avg",  "concave"),
-    ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "curvature"),
-    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+    ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),
+    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
 
     # -------- Class2 --------
-    ("Class2", "P1", "it2_smooth_3Hz", "it2_smooth_3Hz", "avg",  "hilbert"),
-    ("Class2", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "whiskers", "line_distance_10"),
-    ("Class2", "P3", "it2",            "it2",            "full",      "hilbert"),
+    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
+    ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
 
     # -------- Class3 --------
-    ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg", "hilbert"),
-    ("Class3", "P3", "it2",            "it2",            "full", "modified_scholkmann_1-2_99"),
+    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
+    ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
 
     # -------- Class4 --------
-    ("Class4", "P2", "it2", "it2", "full", "concave_d2x=0-002"),
+    ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
 ],
 columns=[
     "class",
@@ -882,22 +961,22 @@ columns=[
 # --- wariant b ---
 df_variant_b = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it2",            "it2",            "full", "concave"),
-    ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "curvature"),
-    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+    ("Class1", "P1", "it1",            "it1",            "full", "concave"),
+    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
 
     # -------- Class2 --------
-    ("Class2", "P1", "it2_smooth_3Hz", "it2_smooth_3Hz", "avg",  "hilbert"),
-    ("Class2", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "line_distance_10"),
-    ("Class2", "P3", "it2",            "it2",            "pm3", "hilbert"),
+    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
+    ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
 
     # -------- Class3 --------
-    ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "wavelet"),
-    ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
+    ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
 
     # -------- Class4 --------
-    ("Class4", "P2", "it2", "it2", "pm3", "concave_d2x=0-002"),
+    ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
 ],
 columns=[
     "class",
@@ -909,12 +988,12 @@ columns=[
 ])
 
 datasets_dict = {
-    # "it1": it1,
-    # "it1_smooth_4Hz": it1_smooth_4Hz,
-    # "it1_smooth_3Hz": it1_smooth_3Hz,
-    "it2": it2,
-    "it2_smooth_4Hz": it2_smooth_4Hz,
-    "it2_smooth_3Hz": it2_smooth_3Hz,
+    "it1": it1,
+    "it1_smooth_4Hz": it1_smooth_4Hz,
+    "it1_smooth_3Hz": it1_smooth_3Hz,
+    # "it2": it2,
+    # "it2_smooth_4Hz": it2_smooth_4Hz,
+    # "it2_smooth_3Hz": it2_smooth_3Hz,
 }
 
 
@@ -982,12 +1061,68 @@ df_pogladowe_b_it2_pp = pd.DataFrame([
 # plot_files_in_class(results_combined_b_it2_pp, "Class3")
 # plot_files_in_class(results_combined_b_it2_pp, "Class4")
 
-classes = ["Class1", "Class2", "Class3",]
-for class_id in classes:
-    plot_upset_classic_postproc(results_combined_a_it2_pp, class_id)
-    plot_upset_classic_postproc(results_combined_b_it2_pp, class_id)
+# classes = ["Class1", "Class2", "Class3",]
+# for class_id in classes:
+#     plot_upset_classic_postproc(results_combined_a_it2_pp, class_id)
+#     plot_upset_classic_postproc(results_combined_b_it2_pp, class_id)
 
 df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').str[0]
+
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class1_example_0050"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class1_example_0043"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class2_example_0025"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class1_example_0050"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class2_example_0169"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class2_example_0114"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class3_example_0185"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class4_example_0097"
+)
+
+plot_signal_pre_post_styled(
+    results_combined_a_it2,
+    results_combined_a_it2_pp,
+    file_name="Class4_example_0073"
+)
+
 
 # mask = (
 #     (df_pogladowe_a_it2_pp["Class"] == "Class3") &
