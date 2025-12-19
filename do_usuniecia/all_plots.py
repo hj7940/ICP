@@ -15,20 +15,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# def has_peak(v):
-#     """Zwraca True, jeśli pik jest wykryty (nie NaN)."""
-#     return v is not None and not math.isnan(v)
-
 def has_peak(v):
-    """Zwraca True, jeśli pik jest wykryty (nie NaN, nie pusta lista)."""
-    if v is None:
-        return False
-    if isinstance(v, list):
-        return len(v) > 0
-    try:
-        return not math.isnan(v)
-    except TypeError:
-        return True  # np. int
+    """Zwraca True, jeśli pik jest wykryty (nie NaN)."""
+    return v is not None and not math.isnan(v)
 
 
 
@@ -75,53 +64,12 @@ def plot_upset_for_class(results_combined, class_name):
         if ax.get_xlabel() == "None":
             ax.set_xlabel("Liczba wykryć piku")  # usuwa niepotrzebne etykiety
     u['totals'].set_xlabel("Liczba wykryć piku", fontsize=8)
-    plt.show()
-    
-
-
-def plot_upset_classic_postproc(results_pp, class_name):
-    rows = []
-
-    for r in results_pp:
-        if r["class"] != class_name:
-            continue
-
-        d = r["peaks_detected"]
-
-        rows.append({
-            "P1": not (isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))),
-            "P2": not (isinstance(d.get("P2"), float) and math.isnan(d.get("P2"))),
-            "P3": not (isinstance(d.get("P3"), float) and math.isnan(d.get("P3"))),
-        })
-
-    df = pd.DataFrame(rows)
-    
-    series = df.value_counts().sort_index()
-    total = 250
-    
-    perc = series / total * 100
-
-    plt.figure(figsize=(6, 4))
-    u = UpSet(
-        perc,
-        show_counts=True,
-        sort_by="cardinality",
-        sort_categories_by="-input"
-    ).plot()
-
-    plt.suptitle(f"Klasa {class_name[-1]} – diagram UpSet", fontsize=12)
-
-    # podpisy osi po polsku
-    for ax in plt.gcf().axes:
-        if ax.get_ylabel() == "Intersection size":
-            ax.set_ylabel("Udział sygnałów [%]")
-        if ax.get_xlabel() == "None":
-            ax.set_xlabel("Kombinacje wykrytych pików")
-    u['totals'].set_xlabel("Wykryte piki [%]", fontsize=10)
-    plt.tight_layout()
+    plt.tight_layout(pad=5, w_pad=5, h_pad=5)
+    plt.subplots_adjust(left=0.2)
     plt.show()
     
     
+
 def plot_files_in_class(detection_results, class_name):
     # Filtrujemy tylko pliki z danej klasy
     class_files = [item for item in detection_results if item["class"] == class_name]

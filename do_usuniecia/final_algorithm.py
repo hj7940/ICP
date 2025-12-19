@@ -25,7 +25,6 @@ dataset : list
 """
 
 # import os
-import copy
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,9 +38,7 @@ import math
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   it1, it1_smooth_4Hz, it1_smooth_3Hz,
                   ranges_all_time, ranges_all_amps, compute_peak_metrics)
-from all_plots import (plot_upset_for_class, plot_files_in_class, 
-                       plot_upset_classic_postproc)
-
+from all_plots import plot_upset_for_class, plot_files_in_class
 # do sprawdzenia
 
 def peak_detection_single(dataset, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
@@ -170,6 +167,78 @@ def run_variant(
 
     return results_all
 
+def compute_peak_metrics_fixed(detection_results, settings, peak_name, class_name):
+    metrics_list = []
+    # bierzemy tylko sygnały dla danej klasy
+    class_signals = [item for item in detection_results if (
+        item["class"] == class_name 
+        and item["peak"] == peak_name
+        and item["method"] in settings["method"].values)]
+    
+    
+    
+    for item in class_signals:
+        file_name = item["file"]
+        signal_df = item["signal"]
+        method_name = item.get("method", None)
+        t = signal_df.iloc[:, 0].values
+        y = signal_df.iloc[:, 1].values
+
+        ref_idx = item["peaks_ref"].get(peak_name)
+        detected = item["peaks_detected"].get(peak_name, [])
+
+        if ref_idx is None or len(detected) == 0:
+            metrics_list.append({
+                "Class": class_name,
+                "Peak": peak_name,
+                "File": file_name,
+                "Method": method_name,
+                "Mean_X_Error": np.nan,
+                "Mean_Y_Error": np.nan,
+                "Mean_XY_Error": np.nan,
+                "Min_XY_Error": np.nan,
+                "Peak_Count": 0,
+                "Reference_Peaks": ref_idx,
+                "Detected_Peaks": list(detected)
+            })
+            continue
+
+        t_detected = t[detected]
+        y_detected = y[detected]
+
+        # jeśli wykryto wiele pików P1, bierzemy średnie błędy względem wszystkich referencji
+        if np.isscalar(ref_idx):
+            dx = abs(t_detected - t[ref_idx])
+            dy = abs(y_detected - y[ref_idx])
+        else:  # ref_idx może być listą wielu indeksów
+            dx = np.min([abs(t_detected - t[r]) for r in ref_idx], axis=0)
+            dy = np.min([abs(y_detected - y[r]) for r in ref_idx], axis=0)
+
+        dxy = np.sqrt(dx**2 + dy**2)
+
+        metrics_list.append({
+            "Class": class_name,
+            "Peak": peak_name,
+            "File": file_name,
+            "Method": method_name,
+            "Mean_X_Error": np.mean(dx),
+            "Mean_Y_Error": np.mean(dy),
+            "Mean_XY_Error": np.mean(dxy),
+            "Min_XY_Error": np.min(dxy),
+            "Peak_Count": len(detected),
+            "Reference_Peaks": ref_idx,
+            "Detected_Peaks": list(detected)
+        })
+
+    df_metrics = pd.DataFrame(metrics_list)
+
+    # liczba sygnałów w klasie liczy się teraz względem sygnałów, które **mogą mieć dany pik**
+    num_signals_in_class = len(class_signals)
+    num_detected = df_metrics["Peak_Count"].gt(0).sum()
+    df_metrics["Num_Signals_in_Class"] = num_signals_in_class
+    df_metrics["Num_Signals_with_Peak"] = num_detected
+
+    return df_metrics
 
 
 def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
@@ -215,7 +284,7 @@ def postprocess_peaks(results_combined):
     Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
     """
 
-    results_post=copy.deepcopy(results_combined)
+    results_post=results_combined
 
     for item in results_post:
         class_id = item["class"]
@@ -441,20 +510,12 @@ def compute_peak_metrics_all_peaks(detection_results, class_name):
     return df_metrics
 
 
-# def has_peak(v):
-#     """Zwraca True, jeśli pik jest wykryty (nie NaN)."""
-#     return v is not None and not math.isnan(v)
+
+    
 
 def has_peak(v):
-    """Zwraca True, jeśli pik jest wykryty (nie NaN, nie pusta lista)."""
-    if v is None:
-        return False
-    if isinstance(v, list):
-        return len(v) > 0
-    try:
-        return not math.isnan(v)
-    except TypeError:
-        return True  # np. int
+    """Zwraca True, jeśli pik jest wykryty (nie NaN)."""
+    return v is not None and not math.isnan(v)
 
 
 
@@ -484,283 +545,8 @@ def select_problematic_rows(results_combined, max_dist=20):
     return selected
 
 
-def plot_peak_detection_pie(results_combined, class_id, peak="P2"):
-    """
-    Rysuje wykres kołowy pokazujący ile sygnałów w danej klasie
-    ma wykryty dany pik, a ile nie.
-
-    results_combined : lista słowników po postprocess_peaks
-    class_id : str, np. "Class4"
-    peak : str, nazwa piku, np. "P1", "P2", "P3"
-    """
-    # filtrujemy tylko daną klasę
-    class_results = [d for d in results_combined if d["class"] == class_id]
-
-    # liczba sygnałów z wykrytym pikiem
-    has_peak_count = sum(1 for d in class_results if d.get("peaks_detected") and not math.isnan(d["peaks_detected"].get(peak, float('nan'))))
-    no_peak_count = len(class_results) - has_peak_count
-
-    # dane do wykresu
-    labels = [f"{peak} wykryty", f"{peak} nie wykryty"]
-    sizes = [has_peak_count, no_peak_count]
-    colors = ["#66b3ff", "#ff9999"]
-
-    plt.figure(figsize=(6,6))
-    plt.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90)
-    plt.title(f"Klasa {class_id[-1]}: wykrycie {peak} w sygnałach")
-    plt.show()
-    
-    
-def compute_metrics_pre_postproc(dataset, class_name):
-    """
-    Oblicza metryki błędów dla danych przed postprocessingiem.
-    
-    dataset: lista słowników (przed postproc)
-    class_name: np. "Class1"
-    
-    Zwraca DataFrame:
-        Class, Peak, Mean_X_Error, Mean_Y_Error, Mean_XY_Error, Std_XY_Error, Num_Files
-    """
-    expected_peaks = ["P1", "P2", "P3"] if class_name != "Class4" else ["P2"]
-    metrics_list = []
-    # filtrowanie po klasie
-    class_signals = [d for d in dataset if d["class"] == class_name]
-    n_files = 250 if class_name in ["Class1","Class2","Class3"] else 50
-    
-    for peak in expected_peaks:
-        dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
-
-        for item in class_signals:
-            sig = item["signal"]
-            t = sig.iloc[:,0].values
-            y = sig.iloc[:,1].values
-
-            ref_idx = item["peaks_ref"].get(peak)
-            detected = item["peaks_detected"].get(peak, [])
-
-            if ref_idx is None or len(detected) == 0:
-                continue
-
-            # dopasowanie wielu wykrytych do referencji
-            if np.isscalar(ref_idx):
-                dx = np.abs(t[detected] - t[ref_idx])
-                dy = np.abs(y[detected] - y[ref_idx])
-            else:
-                dx = np.sum([np.abs(t[detected] - t[r]) for r in ref_idx], axis=0)
-                dy = np.sum([np.abs(y[detected] - y[r]) for r in ref_idx], axis=0)
-
-            dxy = np.sqrt(dx**2 + dy**2)
-
-            # agregacja po pliku: średnia jeśli wykryto kilka
-            dx_all.append(np.mean(dx))
-            dy_all.append(np.mean(dy))
-            dxy_all.append(np.mean(dxy))
-            
-            peak_count_sum += len(detected)
-
-        metrics_list.append({
-            "Class": class_name,
-            "Peak": peak,
-            "Mean_X_Error": np.mean(dx_all) if dx_all else np.nan,
-            "Mean_Y_Error": np.mean(dy_all) if dy_all else np.nan,
-            "Mean_XY_Error": np.mean(dxy_all) if dxy_all else np.nan,
-            "Std_XY_Error": np.std(dxy_all) if dxy_all else np.nan,
-            "%_Files_With_Peak": len(dx_all)/n_files,
-            "Peak_Count": peak_count_sum
-        })
-
-    return pd.DataFrame(metrics_list)
 
 
-def compute_metrics_postproc(dataset, class_name):
-    """
-    Oblicza metryki błędów dla danych po postprocessingiem.
-    
-    dataset: lista słowników (po postproc)
-    class_name: np. "Class1"
-    
-    Zwraca DataFrame:
-        Class, Peak, Mean_X_Error, Mean_Y_Error, Mean_XY_Error, Std_XY_Error, Num_Files
-    """
-    expected_peaks = ["P1", "P2", "P3"] if class_name != "Class4" else ["P2"]
-    metrics_list = []
-    class_signals = [d for d in dataset if d["class"] == class_name]
-    n_files = 250 if class_name in ["Class1","Class2","Class3"] else 50
-
-    for peak in expected_peaks:
-        dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
-
-        for item in class_signals:
-            sig = item["signal"]
-            t = sig.iloc[:,0].values
-            y = sig.iloc[:,1].values
-
-            ref_idx = item["peaks_ref"].get(peak)
-            detected_val = item["peaks_detected"].get(peak)
-
-            # w postproc to albo int albo NaN
-            if ref_idx is None or detected_val is None or (isinstance(detected_val, float) and math.isnan(detected_val)):
-                continue
-
-            if np.isscalar(ref_idx):
-                dx = abs(t[detected_val] - t[ref_idx])
-                dy = abs(y[detected_val] - y[ref_idx])
-            else:
-                dx = np.sum([abs(t[detected_val] - t[r]) for r in ref_idx])
-                dy = np.sum([abs(y[detected_val] - y[r]) for r in ref_idx])
-
-            dxy = np.sqrt(dx**2 + dy**2)
-            dx_all.append(dx)
-            dy_all.append(dy)
-            dxy_all.append(dxy)
-            
-            peak_count_sum += 1
-
-        metrics_list.append({
-            "Class": class_name,
-            "Peak": peak,
-            "Mean_X_Error": np.mean(dx_all) if dx_all else np.nan,
-            "Mean_Y_Error": np.mean(dy_all) if dy_all else np.nan,
-            "Mean_XY_Error": np.mean(dxy_all) if dxy_all else np.nan,
-            "Std_XY_Error": np.std(dxy_all) if dxy_all else np.nan,
-            "%_Files_With_Peak": len(dx_all)/n_files,
-            "Peak_Count": peak_count_sum
-        })
-
-    return pd.DataFrame(metrics_list)
-
-from matplotlib_venn import venn3, venn3_unweighted 
-from matplotlib import colors as mcolors
-def plot_venn_for_class(results_combined, class_name, ax=None):
-    """
-    Diagram Venna dla P1, P2, P3 w danej klasie
-    """
-
-    # liczniki
-    only_P1 = only_P2 = only_P3 = 0
-    P1_P2 = P1_P3 = P2_P3 = 0
-    P1_P2_P3 = 0
-
-    for item in results_combined:
-        if item["class"] != class_name:
-            continue
-
-        p = item["peaks_detected"]
-
-        has_P1 = not (p["P1"] is None or (isinstance(p["P1"], float) and math.isnan(p["P1"])))
-        has_P2 = not (p["P2"] is None or (isinstance(p["P2"], float) and math.isnan(p["P2"])))
-        has_P3 = not (p["P3"] is None or (isinstance(p["P3"], float) and math.isnan(p["P3"])))
-
-        if has_P1 and not has_P2 and not has_P3:
-            only_P1 += 1
-        elif has_P2 and not has_P1 and not has_P3:
-            only_P2 += 1
-        elif has_P3 and not has_P1 and not has_P2:
-            only_P3 += 1
-        elif has_P1 and has_P2 and not has_P3:
-            P1_P2 += 1
-        elif has_P1 and has_P3 and not has_P2:
-            P1_P3 += 1
-        elif has_P2 and has_P3 and not has_P1:
-            P2_P3 += 1
-        elif has_P1 and has_P2 and has_P3:
-            P1_P2_P3 += 1
-    
-    # oryginalne wartości
-    original_counts = (only_P1, only_P2, P1_P2,
-                       only_P3, P1_P3, P2_P3, P1_P2_P3)
-    
-    # skalowanie wizualne: pierwiastek z liczby, aby zbliżyć wielkości kół
-    scaled_counts = tuple(c**0.001 if c>0 else 0 for c in original_counts)
-    # funkcja wyświetlająca ORYGINALNE liczby
-    
-    def label_formatter(scaled_value, original_values=original_counts, scaled_values=scaled_counts):
-    # znajdź indeks scaled_value w scaled_counts i zwróć odpowiadającą wartość z original_counts
-        try:
-            idx = scaled_values.index(scaled_value)
-            return str(original_values[idx])
-        except ValueError:
-            return str(int(round(scaled_value)))
-
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        
-    v = venn3(
-        subsets=scaled_counts,
-        set_labels=("P1", "P2", "P3"),
-        ax=ax,
-        subset_label_formatter=label_formatter
-    )
-    
-        # tylko P1
-    if v.get_patch_by_id("100") is not None:
-        v.get_patch_by_id("100").set_color('red')
-        v.get_patch_by_id("100").set_alpha(0.55)
-        v.get_patch_by_id('100').set_edgecolor('none')
-    # tylko P2
-    if v.get_patch_by_id("010") is not None:
-        v.get_patch_by_id("010").set_color('green')
-        v.get_patch_by_id("010").set_alpha(0.55)
-        v.get_patch_by_id('010').set_edgecolor('none')
-    # tylko P3
-    if v.get_patch_by_id("001") is not None:
-        v.get_patch_by_id("001").set_color('deepskyblue')
-        v.get_patch_by_id("001").set_alpha(0.55)
-        v.get_patch_by_id('001').set_edgecolor('none')
-    # P1+P2
-    if v.get_patch_by_id("110") is not None:
-        v.get_patch_by_id("110").set_color('saddlebrown')
-        v.get_patch_by_id("110").set_alpha(0.55)
-        v.get_patch_by_id('110').set_edgecolor('none')
-    # P1+P3
-    if v.get_patch_by_id("101") is not None:
-        v.get_patch_by_id("101").set_color('darkviolet')
-        v.get_patch_by_id("101").set_alpha(0.55)
-        v.get_patch_by_id('101').set_edgecolor('none')
-    # P2+P3
-    if v.get_patch_by_id("011") is not None:
-        v.get_patch_by_id("011").set_color('mediumspringgreen')
-        v.get_patch_by_id("011").set_alpha(0.55)
-        v.get_patch_by_id('011').set_edgecolor('none')
-    # P1+P2+P3
-    if v.get_patch_by_id("111") is not None:
-        v.get_patch_by_id("111").set_color('grey')
-        v.get_patch_by_id("111").set_alpha(0.55)
-        v.get_patch_by_id('111').set_edgecolor('none')
-    
-
-    # podstawowe kolory z matplotlib
-    c_red   = mcolors.to_rgb("tomato")   # P1
-    c_green = mcolors.to_rgb("limegreen")# P2
-    c_blue  = mcolors.to_rgb("dodgerblue") # P3
-    
-    # mieszanki addytywne
-    def mix_colors(*cols):
-        r = sum(c[0] for c in cols)
-        g = sum(c[1] for c in cols)
-        b = sum(c[2] for c in cols)
-        # normalizacja do max 1
-        m = max(r,g,b)
-        if m>1: r,g,b = r/m, g/m, b/m
-        return (r,g,b,0.75)  # dodajemy alpha
-    
-    # ustawienie kolorów ręcznie
-    if v.get_patch_by_id("100") is not None:  # P1
-        v.get_patch_by_id("100").set_color(c_red + (0.75,))
-    if v.get_patch_by_id("010") is not None:  # P2
-        v.get_patch_by_id("010").set_color(c_green + (0.75,))
-    if v.get_patch_by_id("001") is not None:  # P3
-        v.get_patch_by_id("001").set_color(c_blue + (0.75,))
-    if v.get_patch_by_id("110") is not None:  # P1+P2
-        v.get_patch_by_id("110").set_color(mix_colors(c_red, c_green))
-    if v.get_patch_by_id("101") is not None:  # P1+P3
-        v.get_patch_by_id("101").set_color(mix_colors(c_red, c_blue))
-    if v.get_patch_by_id("011") is not None:  # P2+P3
-        v.get_patch_by_id("011").set_color(mix_colors(c_green, c_blue))
-    if v.get_patch_by_id("111") is not None:  # P1+P2+P3
-        v.get_patch_by_id("111").set_color(mix_colors(c_red, c_green, c_blue))
-
-    ax.set_title(class_name)    
     
 """
 Class1 P1:
@@ -849,6 +635,71 @@ Class4:
     
 """
 
+# datasets = [
+#     (it2, "it2"),
+#     (it2_smooth_4Hz, "it2_smooth_4Hz"),
+#     (it2_smooth_3Hz, "it2_smooth_3Hz"),
+# ]
+
+#c1_p1=peak_detection_single(it2, "concave", "Class1", "P1", df_ranges_time.loc["it2", "avg"], None, "avg")
+ # -------------------- lekka krakasa, moznaby rzec ----------------
+# --- wariant a ---
+# df_variant_a = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it2",            "it2",            "avg",  "concave"),
+#     ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it2_smooth_3Hz", "it2_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it2",            "it2",            "whiskers", "wavelet"),
+#     ("Class2", "P3", "it2",            "it2",            "avg",      "curvature"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it2",            "it2",            "whiskers", "concave"),
+#     ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
+
+# # --- wariant b ---
+# df_variant_b = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it2",            "it2",            "full", "concave"),
+#     ("Class1", "P2", "it2",            "it2",            "avg",  "curvature"),
+#     ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it2_smooth_3Hz", "it2",            "avg",  "wavelet"),
+#     ("Class2", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "curvature"),
+#     ("Class2", "P3", "it2",            "it2",            "whiskers", "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "full",     "concave"),
+#     ("Class3", "P3", "it2",            "it2",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "none", "modified_scholkmann_1-2_99"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
 
 # --- wariant a ---
 df_variant_a = pd.DataFrame([
@@ -917,119 +768,27 @@ datasets_dict = {
     "it2_smooth_3Hz": it2_smooth_3Hz,
 }
 
-
-
-# %% ================= DRUGI ZESTAW (IT2) ====================
-results_a_it2 = run_variant(
-    df_variant_a,
-    datasets_dict=datasets_dict,
-    ranges_all_time=ranges_all_time,
-    ranges_all_amps=ranges_all_amps)
-
-results_combined_a_it2 = combine_peaks_by_file(results_a_it2)
-results_combined_a_it2_pp = postprocess_peaks(results_combined_a_it2)
-
-df_pogladowe_a_it2_pp = pd.DataFrame([
-    {
-        "file": d["file"],
-        "peaks_ref": d["peaks_ref"],
-        "peaks_detected": d["peaks_detected"],
-}
-    for d in results_combined_a_it2_pp])
-
-
-
-results_b_it2 = run_variant(
-    df_variant_b,
-    datasets_dict=datasets_dict,
-    ranges_all_time=ranges_all_time,
-    ranges_all_amps=ranges_all_amps)
-
-results_combined_b_it2 = combine_peaks_by_file(results_b_it2)
-results_combined_b_it2_pp = postprocess_peaks(results_combined_b_it2)
-
-df_pogladowe_b_it2_pp = pd.DataFrame([
-    {
-        "file": d["file"],
-        "peaks_ref": d["peaks_ref"],
-        "peaks_detected": d["peaks_detected"],
-    }
-    for d in results_combined_b_it2_pp])
-
-
-# classes = ["Class1", "Class2", "Class3", "Class4"]
-
-# # wariant a
-# df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
-# df_metrics_a_post = pd.concat([compute_metrics_postproc(results_combined_a_it2_pp, cls) for cls in classes], ignore_index=True)
-
-# # wariant b
-# df_metrics_b_pre = pd.concat([compute_metrics_pre_postproc(results_b_it2, cls) for cls in classes], ignore_index=True)
-# df_metrics_b_post = pd.concat([compute_metrics_postproc(results_combined_b_it2_pp, cls) for cls in classes], ignore_index=True)
-
-# df_metrics_a_pre.to_csv("metrics_a_pre.csv", index=False)
-# df_metrics_a_post.to_csv("metrics_a_post.csv", index=False)
-# df_metrics_b_pre.to_csv("metrics_b_pre.csv", index=False)
-# df_metrics_b_post.to_csv("metrics_b_post.csv", index=False)
-
-# plot_files_in_class(results_combined_a_it2_pp, "Class1")
-# plot_files_in_class(results_combined_a_it2_pp, "Class2")
-# plot_files_in_class(results_combined_a_it2_pp, "Class3")
-# plot_files_in_class(results_combined_a_it2_pp, "Class4")
-
-# plot_files_in_class(results_combined_b_it2_pp, "Class1")
-# plot_files_in_class(results_combined_b_it2_pp, "Class2")
-# plot_files_in_class(results_combined_b_it2_pp, "Class3")
-# plot_files_in_class(results_combined_b_it2_pp, "Class4")
-
-classes = ["Class1", "Class2", "Class3",]
-for class_id in classes:
-    plot_upset_classic_postproc(results_combined_a_it2_pp, class_id)
-    plot_upset_classic_postproc(results_combined_b_it2_pp, class_id)
-
-df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').str[0]
-
-# mask = (
-#     (df_pogladowe_a_it2_pp["Class"] == "Class3") &
-#     df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#         lambda d:
-#             not (isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))) and
-#             not (isinstance(d.get("P2"), float) and math.isnan(d.get("P2"))) and
-#             not (isinstance(d.get("P3"), float) and math.isnan(d.get("P3")))
-#     )
+#%% A IT1
+# results_a = run_variant(
+#     df_variant_a,
+#     datasets_dict=datasets_dict,
+#     ranges_all_time=ranges_all_time,
+#     ranges_all_amps=ranges_all_amps
 # )
 
-# df_all_peaks_class3 = df_pogladowe_a_it2_pp[mask]
 
-# print(df_all_peaks_class3[["file", "peaks_detected"]])
-# print(f"\nLiczba sygnałów Class3 z wykrytymi P1, P2 i P3: {len(df_all_peaks_class3)}")
+# results_combined_a = combine_peaks_by_file(results_a)
+# # results_combined_a_pp = postprocess_peaks(results_combined_a)
 
-# mask_complement = (
-#     (df_pogladowe_a_it2_pp["Class"] == "Class3") &
-#     df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#         lambda d:
-#             (isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))) or
-#             (isinstance(d.get("P2"), float) and math.isnan(d.get("P2"))) or
-#             (isinstance(d.get("P3"), float) and math.isnan(d.get("P3")))
-#     )
-# )
 
-# df_not_all_peaks_class3 = df_pogladowe_a_it2_pp[mask_complement]
-
-# print(df_not_all_peaks_class3[["file", "peaks_detected"]])
-# print(f"\nLiczba sygnałów Class3 BEZ kompletu P1–P2–P3: {len(df_not_all_peaks_class3)}")
-# mask = (df_pogladowe_a_it2_pp["Class"] == "Class3") & df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#     lambda d: isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))
-# )
-
-# df_missing_p1 = df_pogladowe_a_it2_pp[mask]
-
-# # Wyświetlamy
-# print(df_missing_p1)
-
-# plot_peak_detection_pie(results_combined_a_it2_pp, "Class4", peak="P2")
-# plot_peak_detection_pie(results_combined_b_it2_pp, "Class4", peak="P2")
-
+# df_pogladowe_a_pp = pd.DataFrame([
+#     {
+#         "file": d["file"],
+#         "peaks_ref": d["peaks_ref"],
+#         "peaks_detected": d["peaks_detected"],
+#     }
+#     for d in results_combined_a
+# ])
 
 # mask = df_pogladowe_a_pp["peaks_detected"].apply(
 #     lambda d: any(len(d[p]) > 1 for p in ["P2"])
@@ -1039,6 +798,7 @@ df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').st
 # mask = df_pogladowe_a_pp["peaks_detected"].apply(
 #     lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
 # )
+
 # rows_multi_a = df_pogladowe_a_pp[mask]
 # print(rows_multi_a)
 
@@ -1052,3 +812,163 @@ df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').st
 
 # print(count_a, empty_lists_count_a)
 
+
+# plot_files_in_class(results_combined, "Class1")
+# plot_files_in_class(results_combined, "Class2")
+# plot_files_in_class(results_combined, "Class3")
+# plot_files_in_class(results_combined, "Class4")
+
+# %% B
+# results_b = run_variant(
+#     df_variant_a,
+#     datasets_dict=datasets_dict,
+#     ranges_all_time=ranges_all_time,
+#     ranges_all_amps=ranges_all_amps
+# )
+
+
+# results_combined_b = combine_peaks_by_file(results_b)
+# # results_combined_b_pp = postprocess_peaks(results_combined_b)
+
+# df_pogladowe_b_pp = pd.DataFrame([
+#     {
+#         "file": d["file"],
+#         "peaks_ref": d["peaks_ref"],
+#         "peaks_detected": d["peaks_detected"],
+#     }
+#     for d in results_combined_b
+# ])
+
+# mask = df_pogladowe_b_pp["peaks_detected"].apply(
+#     lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
+# )
+
+# rows_multi_b = df_pogladowe_b_pp[mask]
+# print(rows_multi_b)
+
+# count_b = df_pogladowe_b["peaks_detected"].apply(
+#     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
+# ).sum()
+
+# empty_lists_count_b = df_pogladowe_b["peaks_detected"].apply(
+#     lambda d: (len(d["P1"]) == 0) + (len(d["P2"]) == 0) + (len(d["P3"]) == 0)
+# ).sum()
+
+# print(count_b, empty_lists_count_b)
+
+# plot_files_in_class(results_combined_b, "Class1")
+# plot_files_in_class(results_combined_b, "Class2")
+# plot_files_in_class(results_combined_b, "Class3")
+# plot_files_in_class(results_combined_b, "Class4")
+
+# all_metrics = []
+
+# for class_name in ["Class1","Class2","Class3","Class4"]:
+#         df_metrics = compute_peak_metrics_all_peaks(results_a, class_name)
+#         # dodajemy info o metodzie
+#         all_metrics.append(df_metrics) 
+        
+# # for class_name in ["Class4"]:
+# #     for peak_name in ["P2"]:
+# #         df_metrics = compute_peak_metrics_fixed(results_a, df_variant_a, peak_name, class_name)
+# #         # dodajemy info o metodzie
+# #         all_metrics.append(df_metrics) 
+
+# # for class_name in ["Class1","Class2","Class3","Class4"]:
+# #     df_metrics = compute_peak_metrics_all_peaks_combined(results_a, class_name)
+# #     all_metrics.append(df_metrics)
+# df_all_metrics = pd.concat(all_metrics, ignore_index=True)
+# df_avg_metrics = df_all_metrics.groupby(["Class"]).mean(numeric_only=True).reset_index()
+
+# %% ================= DRUGI ZESTAW (IT2) ====================
+results_a_it2 = run_variant(
+    df_variant_a,
+    datasets_dict=datasets_dict,
+    ranges_all_time=ranges_all_time,
+    ranges_all_amps=ranges_all_amps
+)
+
+
+results_combined_a_it2 = combine_peaks_by_file(results_a_it2)
+results_combined_a_it2_pp = postprocess_peaks(results_combined_a_it2)
+
+
+df_pogladowe_a_it2_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_a_it2_pp
+])
+
+classes = ["Class1", "Class2", "Class3",]
+for cls in classes:
+    plot_upset_for_class(results_combined_a_it2_pp, cls)
+
+# plot_files_in_class(results_combined_a_it2_pp, "Class1")
+# plot_files_in_class(results_combined_a_it2_pp, "Class2")
+# plot_files_in_class(results_combined_a_it2_pp, "Class3")
+# plot_files_in_class(results_combined_a_it2_pp, "Class4")
+
+results_b_it2 = run_variant(
+    df_variant_b,
+    datasets_dict=datasets_dict,
+    ranges_all_time=ranges_all_time,
+    ranges_all_amps=ranges_all_amps
+)
+
+
+results_combined_b_it2 = combine_peaks_by_file(results_b_it2)
+results_combined_b_it2_pp = postprocess_peaks(results_combined_b_it2)
+
+
+df_pogladowe_b_it2_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_b_it2_pp
+])
+
+
+
+
+# classes = ["Class1", "Class2", "Class3",]
+# for cls in classes:
+#     plot_upset_for_class(results_combined_b_it2_pp, cls)
+
+
+# plot_files_in_class(results_combined_b_it2_pp, "Class1")
+# plot_files_in_class(results_combined_b_it2_pp, "Class2")
+# plot_files_in_class(results_combined_b_it2_pp, "Class3")
+# plot_files_in_class(results_combined_b_it2_pp, "Class4")
+
+# mask = df_pogladowe_a_pp["peaks_detected"].apply(
+#     lambda d: any(len(d[p]) > 1 for p in ["P2"])
+# )
+# rows_multi_a = df_pogladowe_a_pp[mask]
+# print(rows_multi_a)
+# mask = df_pogladowe_a_pp["peaks_detected"].apply(
+#     lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
+# )
+
+# rows_multi_a = df_pogladowe_a_pp[mask]
+# print(rows_multi_a)
+
+# count_a = df_pogladowe_a["peaks_detected"].apply(
+#     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
+# ).sum()
+
+# empty_lists_count_a = df_pogladowe_a["peaks_detected"].apply(
+#     lambda d: (len(d["P1"]) == 0) + (len(d["P2"]) == 0) + (len(d["P3"]) == 0)
+# ).sum()
+
+# print(count_a, empty_lists_count_a)
+
+
+# plot_files_in_class(results_combined, "Class1")
+# plot_files_in_class(results_combined, "Class2")
+# plot_files_in_class(results_combined, "Class3")
+# plot_files_in_class(results_combined, "Class4")

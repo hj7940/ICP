@@ -384,7 +384,7 @@ df_ranges_amps = pd.DataFrame.from_dict(ranges_all_amps, orient="index")
 # %% liczenie pikow
 if __name__ == "__main__":
     
-    wyniki_base = "wyniki_main"
+    wyniki_base = "wyniki_same_avg_for_all"
     os.makedirs(wyniki_base, exist_ok=True)
     
     
@@ -462,7 +462,7 @@ if __name__ == "__main__":
     top_xy_dfs = {}
     top_minxy_dfs = {}
     
-    min_fraction = 0.85
+    min_fraction = 0.90
     # max_XY_Error = 30
     
     # Tworzenie osobnych DF-ów
@@ -494,10 +494,10 @@ if __name__ == "__main__":
     cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
     df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_85.csv", sep=' ', index=False)
+    df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_90_same_avg.csv", sep=' ', index=False)
     
     df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
-    df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_85.csv", sep=' ', index=False)
+    df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)
     
     
     
