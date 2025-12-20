@@ -19,7 +19,7 @@ import numpy as np
 from scipy.signal import find_peaks, hilbert, find_peaks_cwt
 
 
-def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
+def concave(signal, d2x_threshold=0, prominence=0, height=0):
     """
     Detekcja pików na podstawie lokalnych maksimów w obszarach wklęsłych sygnału.
 
@@ -54,7 +54,7 @@ def concave(signal, d2x_threshold=0, prominence=0, threshold=None):
     concave_mask = d2x < d2x_threshold
 
     # znajdź lokalne maksima w całym sygnale
-    peaks, _ = find_peaks(signal, threshold=threshold, prominence=prominence)
+    peaks, _ = find_peaks(signal, height=height, prominence=prominence)
 
     # wybierz tylko te, które leżą w wklęsłych fragmentach
     concave_peaks = [p for p in peaks if concave_mask[p]]
