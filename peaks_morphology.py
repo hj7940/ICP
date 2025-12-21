@@ -23,6 +23,7 @@ from main import (
                   ranges_all_time, ranges_all_amps, compute_peak_metrics,
                   df_ranges_time, df_ranges_amps)
 from scipy.stats import shapiro, anderson, kstest, norm
+from all_plots import plot_peak_features_boxplots
 
 
 def compute_reference_peak_features(dataset, peaks=("P1","P2","P3")):
@@ -169,11 +170,14 @@ df_agg = (
     .reset_index()
 )
 
-df_agg.to_csv("peaks_morphology.csv", index=False)
+# df_agg.to_csv("peaks_morphology.csv", index=False)
 
-tuned_params = df_agg[["Class", "Peak"]].copy()
-for col_prefix in ["idx_", "h_", "prom_"]:
-    tuned_params[col_prefix + "lower"] = df_agg[col_prefix + "lower_whisker"]
-    tuned_params[col_prefix + "upper"] = df_agg[col_prefix + "upper_whisker"]
+# tuned_params = df_agg[["Class", "Peak"]].copy()
+# for col_prefix in ["idx_", "h_", "prom_"]:
+#     tuned_params[col_prefix + "lower"] = df_agg[col_prefix + "lower_whisker"]
+#     tuned_params[col_prefix + "upper"] = df_agg[col_prefix + "upper_whisker"]
     
-tuned_params.to_csv("tuned_params.csv", index=False)
+# tuned_params.to_csv("tuned_params.csv", index=False)
+
+
+plot_peak_features_boxplots(df_all, features=["Index", "Height","Prominence"])

@@ -666,13 +666,13 @@ Class2 P3:
     
 
 Class3 P1:
-    a,b) smooth 4Hz, full, wavelet LUB smooth 4Hz, whiskers, wavelet
+    a,b) smooth 4Hz, full, wavelet LUB smooth 4Hz, whiskers, wavelet // (AVG)
     
 Class3 P2:
     a) whiskers, concave (min blad)
     b) smooth 4Hz, full, concave (max sig)
     ----------- ZMIANA ------------
-    a) smooth 4Hz, avg, hilbert
+    a) smooth 4Hz, avg, hilbert // <----- tylko b?
     b) smooth 4Hz, avg, wavelet
 
 Class3 P3:

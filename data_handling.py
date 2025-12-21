@@ -81,7 +81,7 @@ def load_dataset(base_path, it_type):
     return dataset
 
 
-def smooth_butter(x, cutoff=1, fs=180, order=3):
+def smooth_butter(x, cutoff=1, fs=1, order=3):
     """
     Wygładza jednowymiarowy sygnał za pomocą cyfrowego filtru
     dolnoprzepustowego Butterwortha z zerowym przesunięciem fazowym.

@@ -17,9 +17,10 @@ Zawiera implementacje algorytmów detekcji pików opartych na:
 """
 import numpy as np
 from scipy.signal import find_peaks, hilbert, find_peaks_cwt
+from itertools import groupby
 
 
-def concave(signal, d2x_threshold=0, prominence=0, height=0):
+def concave(signal, d2x_threshold=0, min_len=8, height=0, prominence=0):
     """
     Detekcja pików na podstawie lokalnych maksimów w obszarach wklęsłych sygnału.
 
@@ -52,12 +53,28 @@ def concave(signal, d2x_threshold=0, prominence=0, height=0):
 
     # maska obszarów wklęsłych
     concave_mask = d2x < d2x_threshold
+    
+    # --- regiony wklęsłe ---
+    regions = []
+    for k, g in groupby(enumerate(concave_mask), key=lambda x: x[1]):
+        if k:
+            idx = [i for i, _ in g]
+            if len(idx) >= min_len:
+                regions.append((idx[0], idx[-1]))
 
-    # znajdź lokalne maksima w całym sygnale
+    # piki globalne
     peaks, _ = find_peaks(signal, height=height, prominence=prominence)
 
-    # wybierz tylko te, które leżą w wklęsłych fragmentach
-    concave_peaks = [p for p in peaks if concave_mask[p]]
+    # tylko piki w długich regionach wklęsłych
+    concave_peaks = [
+        p for p in peaks
+        if any(start <= p <= end for start, end in regions)
+    ]
+    # znajdź lokalne maksima w całym sygnale
+    # peaks, _ = find_peaks(signal, height=height, prominence=prominence)
+
+    # # wybierz tylko te, które leżą w wklęsłych fragmentach
+    # concave_peaks = [p for p in peaks if concave_mask[p]]
 
     return np.array(concave_peaks)
 
@@ -179,7 +196,7 @@ def modified_scholkmann(signal, limit=0.5):
     return np.array(peaks)
 
 
-def curvature(signal, d2x_threshold=-0.0015, prominence=0.005, threshold=None):
+def curvature(signal, d2x_threshold=-0.0015, min_len=8):
     """
     Detekcja pików na podstawie lokalnych maksimów krzywizny sygnału.
     
@@ -217,17 +234,32 @@ def curvature(signal, d2x_threshold=-0.0015, prominence=0.005, threshold=None):
     # obszary wklęsłe
     concave_mask = d2x < d2x_threshold
 
+    # --- regiony wklęsłe ---
+    regions = []
+    for k, g in groupby(enumerate(concave_mask), key=lambda x: x[1]):
+        if k:
+            idx = [i for i, _ in g]
+            if len(idx) >= min_len:
+                regions.append((idx[0], idx[-1]))
+
+    # piki krzywizny
+    peaks, _ = find_peaks(curvature)
+
+    concave_peaks = [
+        p for p in peaks
+        if any(start <= p <= end for start, end in regions)
+    ]
     # wykryj piki w krzywiźnie
     # threshold to jak bardzo "wybija się" pik nad pozostałe punkty
-    peaks, _ = find_peaks(curvature, threshold=threshold, prominence=prominence)
+    # peaks, _ = find_peaks(curvature, threshold=threshold, prominence=prominence)
 
-    # wybierz tylko piki w obszarach wklęsłych
-    concave_peaks = [p for p in peaks if concave_mask[p]]
+    # # wybierz tylko piki w obszarach wklęsłych
+    # concave_peaks = [p for p in peaks if concave_mask[p]]
 
     return np.array(concave_peaks)
 
 
-def line_distance(signal, d2x_threshold=0.02, mode="perpendicular", min_len=10):
+def line_distance(signal, d2x_threshold=0.02, mode="perpendicular", min_len=8):
     """
     Detekcja pików na podstawie maksymalnej odległości od linii bazowej.  
     

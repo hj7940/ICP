@@ -13,24 +13,27 @@ import math
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from pypalettes import load_cmap
+from itertools import groupby
 
 
-def has_peak(v):
-    """Zwraca True, jeśli pik jest wykryty (nie NaN, nie pusta lista)."""
-    if v is None:
-        return False
-    if isinstance(v, list):
-        return len(v) > 0
-    try:
-        return not math.isnan(v)
-    except TypeError:
-        return True  # np. int
+# def has_peak(v):
+#     """Zwraca True, jeśli pik jest wykryty (nie NaN, nie pusta lista)."""
+#     if v is None:
+#         return False
+#     if isinstance(v, list):
+#         return len(v) > 0
+#     try:
+#         return not math.isnan(v)
+#     except TypeError:
+#         return True  # np. int
 
 
 
-def peak_signature(peaks):
-    """Zwraca tuple wykrytych pików spośród P1, P2, P3"""
-    return tuple(p for p in ["P1", "P2", "P3"] if has_peak(peaks.get(p)))
+# def peak_signature(peaks):
+#     """Zwraca tuple wykrytych pików spośród P1, P2, P3"""
+#     return tuple(p for p in ["P1", "P2", "P3"] if has_peak(peaks.get(p)))
 
 
     
@@ -297,3 +300,370 @@ def plot_signal_with_concave_areas(dataset, filename):
     plt.ylabel("Amplituda")
     plt.title(f"Sygnał {filename} z obszarami wklęsłymi (teal) i wypukłymi (fiolet)")
     plt.show()
+
+
+def plot_all_signals_with_peaks_final(
+    detection_results,
+    method_name,
+    ranges_name,
+    classes=("Class1", "Class2", "Class3", "Class4")
+):
+    """
+    4 subplotsy: Class1..Class4
+    - wszystkie sygnały
+    - średni sygnał
+    - histogram gęstości pików referencyjnych (green)
+    - histogram gęstości pików automatycznych (red)
+
+    detection_results : lista słowników z peak_detection
+    method_name       : np. "concave", "concave_tuned", "curvature"
+    ranges_name       : np. "full", "pm3", "avg", "none"
+    """
+
+    titles_dict = {
+        "concave": "Maksima w odcinkach wklęsłych",
+        "concave_tuned": "Maksima w odcinkach wklęsłych (parametry stroone)",
+        "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (0.5)",
+        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (1.0)",
+        "curvature": "Maksymalna krzywizna",
+        "line_distance_8": "Odległość od linii bazowej",
+        "line_perpendicular_8": "Odległość prostopadła do linii",
+        "hilbert": "Transformata Hilberta",
+        "wavelet": "Ciągła transformata falkowa"
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    axes = axes.flatten()
+
+    for i, class_name in enumerate(classes):
+        ax = axes[i]
+
+        # --- tylko dane tej klasy, metody i zakresu ---
+        class_items = [
+            d for d in detection_results
+            if d["class"] == class_name
+            and d["method"] == method_name
+            and d["ranges"] == ranges_name
+        ]
+
+        if not class_items:
+            ax.set_title(f"{class_name} – brak danych")
+            continue
+
+        # --- wszystkie sygnały ---
+        all_x = []
+        t = class_items[0]["signal"].iloc[:, 0].values
+
+        for item in class_items:
+            sig = item["signal"]
+            x = sig.iloc[:, 1].values
+            ax.plot(t, x, color="black", alpha=0.07, linewidth=0.7)
+            all_x.append(x)
+
+        # --- średni sygnał ---
+        mean_signal = np.mean(all_x, axis=0)
+        ax.plot(t, mean_signal, color="blue", linewidth=2, label="Średni sygnał")
+
+        # --- zbieranie pików ---
+        manual_t = []
+        auto_t = []
+
+        for item in class_items:
+            sig = item["signal"]
+            t = sig.iloc[:, 0].values
+
+            # referencyjne
+            for idx in item["peaks_ref"].values():
+                if idx is not None and not np.isnan(idx):
+                    manual_t.append(t[int(idx)])
+
+            # wykryte
+            for plist in item["peaks_detected"].values():
+                for idx in plist:
+                    auto_t.append(t[int(idx)])
+
+        ax_hist = ax.twinx()
+
+        if manual_t:
+            ax_hist.hist(
+                manual_t,
+                bins=40,
+                density=True,
+                alpha=0.35,
+                color="green",
+                label="Piki referencyjne"
+            )
+
+        if auto_t:
+            ax_hist.hist(
+                auto_t,
+                bins=40,
+                density=True,
+                alpha=0.35,
+                color="red",
+                label="Piki wykryte"
+            )
+
+        ax.set_title(f"Klasa {class_name[-1]}", fontsize=14)
+        ax.set_xlabel("Numer próbki")
+        ax.set_ylabel("Amplituda")
+        ax.grid(alpha=0.3)
+
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax_hist.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, loc="upper right")
+
+    fig.suptitle(
+        f"{titles_dict.get(method_name, method_name)} — zakres: {ranges_name}",
+        fontsize=18
+    )
+    plt.tight_layout()
+    plt.show()
+
+    
+def plot_all_signals_with_peaks_by_peak_type(
+    detection_results,
+    method_name,
+    ranges_name,
+    classes=("Class1", "Class2", "Class3", "Class4"),
+    peak_types=("P1", "P2", "P3")
+):
+    """
+    Grid: wiersze = klasy, kolumny = typy pików
+    - wszystkie sygnały
+    - średni sygnał
+    - histogram gęstości pików referencyjnych (green)
+    - histogram gęstości pików automatycznych (red)
+    """
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    n_classes = len(classes)
+    n_peaks = len(peak_types)
+
+    fig, axes = plt.subplots(n_classes, n_peaks, figsize=(5*n_peaks, 4*n_classes), squeeze=False)
+
+    titles_dict = {
+        "concave": "Maksima w odcinkach wklęsłych",
+        "concave_tuned": "Maksima w odcinkach wklęsłych (parametry stroone)",
+        "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (0.5)",
+        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (1.0)",
+        "curvature": "Maksymalna krzywizna",
+        "line_distance_8": "Odległość od linii bazowej",
+        "line_perpendicular_8": "Odległość prostopadła do linii",
+        "hilbert": "Transformata Hilberta",
+        "wavelet": "Ciągła transformata falkowa"
+    }
+
+    for i, class_name in enumerate(classes):
+        # wybieramy tylko dane tej klasy
+        class_items = [
+            d for d in detection_results
+            if d["class"] == class_name
+            and d["method"] == method_name
+            and (ranges_name is None or d["ranges"] == ranges_name)
+        ]
+
+        if not class_items:
+            for j, peak_type in enumerate(peak_types):
+                axes[i, j].set_title(f"{class_name} – brak danych")
+            continue
+
+        t = class_items[0]["signal"].iloc[:, 0].values
+        all_x = [item["signal"].iloc[:, 1].values for item in class_items]
+        mean_signal = np.mean(all_x, axis=0)
+
+        for j, peak_type in enumerate(peak_types):
+            ax = axes[i, j]
+
+            # --- rysujemy wszystkie sygnały ---
+            for item in class_items:
+                sig = item["signal"].iloc[:, 1].values
+                ax.plot(t, sig, color="black", alpha=0.07, linewidth=0.7)
+
+            # --- średni sygnał ---
+            ax.plot(t, mean_signal, color="blue", linewidth=2, label="Średni sygnał")
+
+            # --- zbieramy piki ---
+            manual_t = []
+            auto_t = []
+
+            for item in class_items:
+                # referencyjne
+                idx_ref = item["peaks_ref"].get(peak_type)
+                if idx_ref is not None and not np.isnan(idx_ref):
+                    manual_t.append(t[int(idx_ref)])
+
+                # wykryte
+                idx_auto_list = item["peaks_detected"].get(peak_type, [])
+                for idx in idx_auto_list:
+                    auto_t.append(t[int(idx)])
+
+            ax_hist = ax.twinx()
+            if manual_t:
+                ax_hist.hist(manual_t, bins=40, density=True, alpha=0.35, color="green", label="Piki referencyjne")
+            if auto_t:
+                ax_hist.hist(auto_t, bins=40, density=True, alpha=0.35, color="red", label="Piki wykryte")
+
+            ax.set_title(f"{class_name} {peak_type}", fontsize=12)
+            ax.set_xlabel("Numer próbki")
+            ax.set_ylabel("Amplituda")
+            ax.grid(alpha=0.3)
+
+            h1, l1 = ax.get_legend_handles_labels()
+            h2, l2 = ax_hist.get_legend_handles_labels()
+            ax.legend(h1 + h2, l1 + l2, loc="upper right")
+
+    fig.suptitle(
+        f"{titles_dict.get(method_name, method_name)} — zakres: {ranges_name if ranges_name is not None else 'none'}",
+        fontsize=18
+    )
+    plt.tight_layout(rect=[0,0,1,0.97])
+    plt.show()
+
+
+# --------------------------------------------------
+# detekcja obszarów wklęsłych (d2x < 0)
+# --------------------------------------------------
+def concave_regions(y):
+    d2 = np.gradient(np.gradient(y))
+    mask = d2 < 0
+
+    regions = []
+    for k, g in groupby(enumerate(mask), key=lambda x: x[1]):
+        if k:  # tylko True
+            idx = [i for i, _ in g]
+            regions.append((idx[0], idx[-1]))
+    return regions
+
+
+# --------------------------------------------------
+# rysowanie
+# --------------------------------------------------
+def plot_concave_signals(dataset, max_per_class=20):
+    colors = plt.cm.tab20.colors  # zamiennik pypalettes
+
+    for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+        class_items = [
+            d for d in dataset
+            if d["class"] == class_name
+            and "example_" in d["file"]
+        ][:max_per_class]
+
+        n = len(class_items)
+        fig, axes = plt.subplots(
+            n, 1, figsize=(11, 2.0 * n), sharex=True
+        )
+
+        if n == 1:
+            axes = [axes]
+
+        for i, (ax, item) in enumerate(zip(axes, class_items)):
+            sig = item["signal"]
+            y = sig.iloc[:, 1].values
+            x = np.arange(len(y))  # numer próbki
+
+            color = colors[i % len(colors)]
+
+            # sygnał
+            ax.plot(x, y, color=color, linewidth=1)
+
+            # obszary wklęsłe
+            ymin, ymax = y.min(), y.max()
+            for start, end in concave_regions(y):
+                ax.add_patch(
+                    Rectangle(
+                        (start, ymin),
+                        end - start,
+                        ymax - ymin,
+                        color=color,
+                        alpha=0.25,
+                        linewidth=0
+                    )
+                )
+
+            # piki referencyjne
+            for peak_name, idx in item["peaks_ref"].items():
+                if idx is not None and not np.isnan(idx):
+                    idx = int(idx)
+                    ax.axvline(
+                        idx,
+                        color="black",
+                        linestyle="--",
+                        linewidth=1
+                    )
+                    ax.text(
+                        idx,
+                        ymax,
+                        peak_name,
+                        fontsize=8,
+                        ha="center",
+                        va="bottom"
+                    )
+
+            ax.set_ylabel("Amplituda", fontsize=8)
+            ax.set_title(item["file"], fontsize=9)
+
+            # grid + ticki
+            ax.grid(True, which="both", linestyle=":", linewidth=0.6)
+            ax.set_xticks(np.arange(0, len(y), 5))
+
+        axes[-1].set_xlabel("Numer próbki")
+
+        fig.suptitle(
+            f"{class_name} – obszary wklęsłe (d²x < 0) + piki referencyjne",
+            fontsize=14
+        )
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
+
+
+def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","Class3","Class4")):
+    """
+    df - dataframe z kolumnami: Class, Peak, Feature, idx_*, h_*, prom_*, w50_*, ...
+    features - lista kolumn do rysowania (np. ["Index","Height","Prominence","Width_50"])
+    """
+    cmap = load_cmap("Alexandrite")
+    median_color = cmap(0.15)  # ciemny turkus dla mediany
+    outlier_color = cmap(0.75)  # jasny fiolet dla outlierów
+
+    if features is None:
+        features = ["Index","Height","Prominence","Width_50"]
+
+    for feat in features:
+        fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharey=False)
+        axes = axes.flatten()
+
+        for i, cls in enumerate(classes):
+            ax = axes[i]
+            df_cls = df[df["Class"] == cls]
+
+            peaks_to_plot = ["P1","P2","P3"] if cls != "Class4" else ["P2"]
+            data = [df_cls[df_cls["Peak"]==p][feat].dropna() for p in peaks_to_plot]
+
+            if not data:
+                continue
+
+            bplot = ax.boxplot(
+                data,
+                patch_artist=True,
+                labels=peaks_to_plot,
+                medianprops=dict(color=median_color, linewidth=2),
+                flierprops=dict(marker='o', markerfacecolor=outlier_color, markersize=5,
+                                linestyle='none', markeredgecolor=outlier_color)
+            )
+
+            # opcjonalnie kolorujemy boxy na biało z czarnymi krawędziami
+            for patch in bplot['boxes']:
+                patch.set(facecolor='white', edgecolor='black')
+
+            ax.set_title(f"{cls} — {feat}")
+            ax.grid(alpha=0.3)
+            ax.set_ylabel(feat)
+
+        plt.suptitle(f"Boxplots for feature: {feat}", fontsize=16)
+        plt.tight_layout(rect=[0,0,1,0.96])
+        plt.show()
+
+            
