@@ -35,7 +35,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from pypalettes import load_cmap
 from itertools import groupby
 
 
@@ -456,15 +455,16 @@ def plot_all_signals_with_peaks_by_peak_type(
     n_classes = len(classes)
     n_peaks = len(peak_types)
 
-    fig, axes = plt.subplots(n_classes, n_peaks, figsize=(5*n_peaks, 4*n_classes), squeeze=False)
+    fig, axes = plt.subplots(n_classes, n_peaks, figsize=(20, 16), squeeze=False, 
+                             gridspec_kw={"wspace":0.4, "hspace":0.4})
 
     titles_dict = {
         "concave": "Maksima w odcinkach wklęsłych",
         "concave_tuned": "Maksima w odcinkach wklęsłych (+parametry find_peaks)",
         "concave_d2x=-0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: -0,002)",
         "concave_d2x=0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: 0,002)",
-        "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (0.5)",
-        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (1.0)",
+        "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (limit=0.5)",
+        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (limit=1.0)",
         "curvature": "Maksymalna krzywizna",
         "line_distance_8": "Odległość od linii bazowej",
         "line_perpendicular_8": "Odległość prostopadła do linii",
@@ -508,10 +508,10 @@ def plot_all_signals_with_peaks_by_peak_type(
             # --- rysujemy wszystkie sygnały ---
             for item in class_items:
                 sig = item["signal"].iloc[:, 1].values
-                ax.plot(t, sig, color="black", alpha=0.07, linewidth=0.7)
+                ax.plot(t, sig, color="black", alpha=0.05, linewidth=0.5)
 
             # --- średni sygnał ---
-            ax.plot(t, mean_signal, color="blue", linewidth=2, label="Średni sygnał")
+            ax.plot(t, mean_signal, color="blue", linewidth=1.8, label="Średni sygnał")
 
             # --- zbieramy piki ---
             manual_t = []
@@ -530,14 +530,22 @@ def plot_all_signals_with_peaks_by_peak_type(
 
             ax_hist = ax.twinx()
             if manual_t:
-                ax_hist.hist(manual_t, bins=40, density=False, alpha=0.35, color="green", label="Piki referencyjne")
+                ax_hist.hist(manual_t, bins=40, density=False, alpha=0.4, color="green", label="Piki referencyjne")
             if auto_t:
-                ax_hist.hist(auto_t, bins=40, density=False, alpha=0.35, color="red", label="Piki wykryte")
-
-            ax.set_title(f"Klasa {class_name[-1]} {peak_type}", fontsize=12)
-            ax.set_xlabel("Numer próbki")
-            ax.set_ylabel("Amplituda")
-            ax_hist.set_ylabel("Liczba pików")
+                ax_hist.hist(auto_t, bins=40, density=False, alpha=0.4, color="red", label="Piki wykryte")
+                
+            ax.set_xlim(0, 180)
+            ax.set_ylim(bottom=0)
+            
+            ax_hist.set_ylim(bottom=0)
+            
+            ax.margins(x=0, y=0)
+            ax_hist.margins(y=0)
+            
+            ax.set_title(f"Klasa {class_name[-1]} {peak_type}", fontsize=16)
+            ax.set_xlabel("Numer próbki", fontsize=12)
+            ax.set_ylabel("Amplituda", fontsize=12)
+            ax_hist.set_ylabel("Liczba pików", fontsize=12)
             ax.grid(alpha=0.3)
 
             h1, l1 = ax.get_legend_handles_labels()
@@ -653,9 +661,7 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
     df - dataframe z kolumnami: Class, Peak, Feature, idx_*, h_*, prom_*, w50_*, ...
     features - lista kolumn do rysowania (np. ["Index","Height","Prominence","Width_50"])
     """
-    cmap = load_cmap("Alexandrite")
-    median_color = cmap.colors[0]  # ciemny turkus dla mediany
-    outlier_color = cmap.colors[6]  # jasny fiolet dla outlierów
+
 
     if features is None:
         features = ["Index","Height","Prominence","Width_50"]
@@ -678,9 +684,9 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
                 data,
                 patch_artist=True,
                 labels=peaks_to_plot,
-                medianprops=dict(color=median_color, linewidth=2),
+                medianprops=dict(color="orange", linewidth=2),
                 flierprops=dict(marker='o', markerfacecolor="none", markersize=5,
-                                linestyle='none', markeredgecolor=outlier_color)
+                                linestyle='none', markeredgecolor="teal")
             )
 
             # opcjonalnie kolorujemy boxy na biało z czarnymi krawędziami
@@ -723,30 +729,4 @@ def plot_peak_detection_pie(results_combined, class_id, peak="P2"):
     plt.show()
     
 if __name__ == "__main__":
-    cmap = load_cmap("Alexandrite")
-    colors = cmap.colors
-    n = len(colors)
-    
-    fig, ax = plt.subplots(figsize=(n * 0.9, 2))
-    
-    for i, col in enumerate(colors):
-        ax.add_patch(
-            Rectangle(
-                (i, 0), 1, 1,
-                facecolor=col,
-                edgecolor="black"
-            )
-        )
-        ax.text(
-            i + 0.5, -0.15, str(i),
-            ha="center", va="top", fontsize=10
-        )
-    
-    ax.set_xlim(0, n)
-    ax.set_ylim(-0.4, 1)
-    ax.set_yticks([])
-    ax.set_xticks([])
-    ax.set_title("Paleta Alexandrite – indeksy kolorów")
-    ax.set_aspect("equal")
-    
-    plt.show()
+    print("bajo jajo")

@@ -15,6 +15,7 @@ from ranges import (ranges_full, ranges_pm3, ranges_whiskers,
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
                        plot_all_signals_with_peaks_by_peak_type)
 
+import time as tme
 
 # sprawdzone i dzialajace: import zakresow z ranges, load_dataset i smooth_dataset
 # generowanie zakresow zgodnych w strukturze z crossingami
@@ -569,32 +570,33 @@ if __name__ == "__main__":
     
     wyniki_base = "wyniki_NAJnajnowsze_d"
     os.makedirs(wyniki_base, exist_ok=True)
-    
-    
+
     # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    start = tme.time()
+    
     det = peak_detection(
         dataset=it1,
-        method_name="concave",
+        method_name="modified_scholkmann0-5",
         time_ranges=df_ranges_time.loc["it1", "full"],
         amp_ranges=df_ranges_amps.loc["it1", "full"],
         ranges_name="full",
         tuned_params=None
         )
-        
-    plot_all_signals_with_peaks_by_peak_type(
-        detection_results=det,
-        method_name="concave",
-        ranges_name="full"
-    )
+    time_05 = tme.time() - start 
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det,
+    #     method_name="modified_scholkmann0-5",
+    #     ranges_name="full"
+    # )
 
     all_metrics_C = []
     for peak_name in ["P1", "P2", "P3"]:
         for class_name in ["Class1", "Class2", "Class3", "Class4"]:
-            df_concave = compute_peak_metrics(
+            df_scholkmann05 = compute_peak_metrics(
                 det, peak_name, class_name
             )
-            df_concave["Method"] = "concave"
-            all_metrics_C.append(df_concave)
+            df_scholkmann05["Method"] = "modified_scholkmann0-5"
+            all_metrics_C.append(df_scholkmann05)
 
     df_all_metrics_C = pd.concat(all_metrics_C, ignore_index=True)
     df_avg_metrics_C = (
@@ -618,31 +620,30 @@ if __name__ == "__main__":
     )
     .reset_index()
     )
-    
-    
-    det2 = peak_detection(
+    start = tme.time()
+    det = peak_detection(
         dataset=it1,
-        method_name="concave_d2x=-0-002",
+        method_name="modified_scholkmann1",
         time_ranges=df_ranges_time.loc["it1", "full"],
         amp_ranges=df_ranges_amps.loc["it1", "full"],
         ranges_name="full",
         tuned_params=None
         )
-        
-    plot_all_signals_with_peaks_by_peak_type(
-        detection_results=det2,
-        method_name="concave_d2x=-0-002",
-        ranges_name="full"
-    )
+    time_1 = tme.time() - start   
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det,
+    #     method_name="modified_scholkmann1",
+    #     ranges_name="full"
+    # )
 
     all_metrics_C2 = []
     for peak_name in ["P1", "P2", "P3"]:
         for class_name in ["Class1", "Class2", "Class3", "Class4"]:
-            df_concave_2 = compute_peak_metrics(
-                det2, peak_name, class_name
+            df_scholkmann05 = compute_peak_metrics(
+                det, peak_name, class_name
             )
-            df_concave_2["Method"] = "concave_d2x=-0-002"
-            all_metrics_C2.append(df_concave_2)
+            df_scholkmann05["Method"] = "modified_scholkmann1"
+            all_metrics_C2.append(df_scholkmann05)
 
     df_all_metrics_C2 = pd.concat(all_metrics_C2, ignore_index=True)
     df_avg_metrics_C2 = (
@@ -666,118 +667,18 @@ if __name__ == "__main__":
     )
     .reset_index()
     )
-
-
-    det3 = peak_detection(
-    dataset=it1,
-    method_name="concave_d2x=0-002",
-    time_ranges=df_ranges_time.loc["it1", "full"],
-    amp_ranges=df_ranges_amps.loc["it1", "full"],
-    ranges_name="full",
-    tuned_params=None
-    )
-    
-    plot_all_signals_with_peaks_by_peak_type(
-        detection_results=det3,
-        method_name="concave_d2x=0-002",
-        ranges_name="full"
-    )
-    
-    all_metrics_C3 = []
-    for peak_name in ["P1", "P2", "P3"]:
-        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
-            df_concave_3 = compute_peak_metrics(
-                det3, peak_name, class_name
-            )
-            df_concave_3["Method"] = "concave_d2x=0-002"
-            all_metrics_C3.append(df_concave_3)
-
-    df_all_metrics_C3 = pd.concat(all_metrics_C3, ignore_index=True)
-    df_avg_metrics_C3 = (
-        df_all_metrics_C3
-        .groupby(["Class", "Peak", "Method"])
-    .agg(
-        # błędy — średnie
-        Mean_X_Error=("Mean_X_Error", "mean"),
-        Mean_Y_Error=("Mean_Y_Error", "mean"),
-        Mean_XY_Error=("Mean_XY_Error", "mean"),
-        Min_XY_Error=("Min_XY_Error", "mean"),
-
-        # confusion-like — sumy
-        TP=("TP", "sum"),
-        FP=("FP", "sum"),
-        FN=("FN", "sum"),
-
-        # dodatkowe
-        Peak_Count=("Peak_Count", "mean"),
-        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
-    )
-    .reset_index()
-    )
-    
-    det4 = peak_detection(
-    dataset=it1,
-    method_name="concave_tuned",
-    time_ranges=df_ranges_time.loc["it1", "full"],
-    amp_ranges=df_ranges_amps.loc["it1", "full"],
-    ranges_name="full",
-    tuned_params=tuned_params
-    )
-    
-    plot_all_signals_with_peaks_by_peak_type(
-        detection_results=det4,
-        method_name="concave_tuned",
-        ranges_name="full"
-    )
-    
-    all_metrics_C4 = []
-    for peak_name in ["P1", "P2", "P4"]:
-        for class_name in ["Class1", "Class2", "Class4", "Class4"]:
-            df_concave_4 = compute_peak_metrics(
-                det4, peak_name, class_name
-            )
-            df_concave_4["Method"] = "concave_tuned"
-            all_metrics_C4.append(df_concave_4)
-
-    df_all_metrics_C4 = pd.concat(all_metrics_C4, ignore_index=True)
-    df_avg_metrics_C4 = (
-        df_all_metrics_C4
-        .groupby(["Class", "Peak", "Method"])
-    .agg(
-        # błędy — średnie
-        Mean_X_Error=("Mean_X_Error", "mean"),
-        Mean_Y_Error=("Mean_Y_Error", "mean"),
-        Mean_XY_Error=("Mean_XY_Error", "mean"),
-        Min_XY_Error=("Min_XY_Error", "mean"),
-
-        # confusion-like — sumy
-        TP=("TP", "sum"),
-        FP=("FP", "sum"),
-        FN=("FN", "sum"),
-
-        # dodatkowe
-        Peak_Count=("Peak_Count", "mean"),
-        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
-    )
-    .reset_index()
-    )
-    
     
     df_all_methods = pd.concat(
         [
             df_avg_metrics_C,
             df_avg_metrics_C2,
-            df_avg_metrics_C3,
-            df_avg_metrics_C4
         ],
         ignore_index=True
     )
     
     method_order = [
-        "concave",
-        "concave_d2x=-0-002",
-        "concave_d2x=0-002",
-        "concave_tuned"
+        "modified_scholkmann1",
+        "modified_scholkmann0-5",
     ]
     
     df_all_methods["Method"] = pd.Categorical(
@@ -792,7 +693,229 @@ if __name__ == "__main__":
         .reset_index(drop=True)
     )
 
-    df_all_methods.to_csv("metrics_tuning_of_concave.csv", index=False)
+    df_all_methods.to_csv("metrics_tuning_of_scholkmann.csv", index=False)
+# %% ----- CONCAVE - POROWNANIE WARIANTOW METODY ----------------   
+    # det = peak_detection(
+    #     dataset=it1,
+    #     method_name="concave",
+    #     time_ranges=df_ranges_time.loc["it1", "full"],
+    #     amp_ranges=df_ranges_amps.loc["it1", "full"],
+    #     ranges_name="full",
+    #     tuned_params=None
+    #     )
+        
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det,
+    #     method_name="concave",
+    #     ranges_name="full"
+    # )
+
+    # all_metrics_C = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_concave = compute_peak_metrics(
+    #             det, peak_name, class_name
+    #         )
+    #         df_concave["Method"] = "concave"
+    #         all_metrics_C.append(df_concave)
+
+    # df_all_metrics_C = pd.concat(all_metrics_C, ignore_index=True)
+    # df_avg_metrics_C = (
+    #     df_all_metrics_C
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
+    #     # błędy — średnie
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
+
+    #     # confusion-like — sumy
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
+
+    #     # dodatkowe
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
+    
+    
+    # det2 = peak_detection(
+    #     dataset=it1,
+    #     method_name="concave_d2x=-0-002",
+    #     time_ranges=df_ranges_time.loc["it1", "full"],
+    #     amp_ranges=df_ranges_amps.loc["it1", "full"],
+    #     ranges_name="full",
+    #     tuned_params=None
+    #     )
+        
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det2,
+    #     method_name="concave_d2x=-0-002",
+    #     ranges_name="full"
+    # )
+
+    # all_metrics_C2 = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_concave_2 = compute_peak_metrics(
+    #             det2, peak_name, class_name
+    #         )
+    #         df_concave_2["Method"] = "concave_d2x=-0-002"
+    #         all_metrics_C2.append(df_concave_2)
+
+    # df_all_metrics_C2 = pd.concat(all_metrics_C2, ignore_index=True)
+    # df_avg_metrics_C2 = (
+    #     df_all_metrics_C2
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
+    #     # błędy — średnie
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
+
+    #     # confusion-like — sumy
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
+
+    #     # dodatkowe
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
+
+
+    # det3 = peak_detection(
+    # dataset=it1,
+    # method_name="concave_d2x=0-002",
+    # time_ranges=df_ranges_time.loc["it1", "full"],
+    # amp_ranges=df_ranges_amps.loc["it1", "full"],
+    # ranges_name="full",
+    # tuned_params=None
+    # )
+    
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det3,
+    #     method_name="concave_d2x=0-002",
+    #     ranges_name="full"
+    # )
+    
+    # all_metrics_C3 = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_concave_3 = compute_peak_metrics(
+    #             det3, peak_name, class_name
+    #         )
+    #         df_concave_3["Method"] = "concave_d2x=0-002"
+    #         all_metrics_C3.append(df_concave_3)
+
+    # df_all_metrics_C3 = pd.concat(all_metrics_C3, ignore_index=True)
+    # df_avg_metrics_C3 = (
+    #     df_all_metrics_C3
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
+    #     # błędy — średnie
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
+
+    #     # confusion-like — sumy
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
+
+    #     # dodatkowe
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
+    
+    # det4 = peak_detection(
+    # dataset=it1,
+    # method_name="concave_tuned",
+    # time_ranges=df_ranges_time.loc["it1", "full"],
+    # amp_ranges=df_ranges_amps.loc["it1", "full"],
+    # ranges_name="full",
+    # tuned_params=tuned_params
+    # )
+    
+    # plot_all_signals_with_peaks_by_peak_type(
+    #     detection_results=det4,
+    #     method_name="concave_tuned",
+    #     ranges_name="full"
+    # )
+    
+    # all_metrics_C4 = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_concave_4 = compute_peak_metrics(
+    #             det4, peak_name, class_name
+    #         )
+    #         df_concave_4["Method"] = "concave_tuned"
+    #         all_metrics_C4.append(df_concave_4)
+
+    # df_all_metrics_C4 = pd.concat(all_metrics_C4, ignore_index=True)
+    # df_avg_metrics_C4 = (
+    #     df_all_metrics_C4
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
+    #     # błędy — średnie
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
+
+    #     # confusion-like — sumy
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
+
+    #     # dodatkowe
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
+    
+    
+    # df_all_methods = pd.concat(
+    #     [
+    #         df_avg_metrics_C,
+    #         df_avg_metrics_C2,
+    #         df_avg_metrics_C3,
+    #         df_avg_metrics_C4
+    #     ],
+    #     ignore_index=True
+    # )
+    
+    # method_order = [
+    #     "concave",
+    #     "concave_d2x=-0-002",
+    #     "concave_d2x=0-002",
+    #     "concave_tuned"
+    # ]
+    
+    # df_all_methods["Method"] = pd.Categorical(
+    #     df_all_methods["Method"],
+    #     categories=method_order,
+    #     ordered=True
+    # )
+    
+    # df_all_methods = (
+    #     df_all_methods
+    #     .sort_values(["Class", "Peak", "Method"])
+    #     .reset_index(drop=True)
+    # )
+
+    # df_all_methods.to_csv("metrics_tuning_of_concave.csv", index=False)
 
 
     # plot_concave_signals(it1)
