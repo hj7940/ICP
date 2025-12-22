@@ -5,10 +5,10 @@ Created on Mon Dec 15 12:03:29 2025
 Metody wykrywania pikow
 
 Zawiera implementacje algorytmów detekcji pików opartych na:
-- drugiej pochodnej (wklęsłość),
+- wkleslosci+find_peaks,
 - stabilności maksimów w wielu skalach,
-- krzywiźnie,
-- odległości od linii bazowej,
+- wkleslosci+krzywiźnie,
+- wkleslosci+odległości od linii bazowej,
 - obwiedni Hilberta,
 - transformacie falkowej CWT.
 

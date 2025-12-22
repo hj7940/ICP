@@ -3,12 +3,33 @@
 Created on Fri Dec 19 00:37:04 2025
 
 Wszystkie wykresy 
+
+plot_upset_classic_postproc - upsetplot pokazujacy ile razy byla wykryta 
+                            konkretna kombinacja pikow
+
+plot_files_in_class         - wszystkie sygnaly danej klasy, 
+                            zaznaczone piki referencyjne i detected
+
+plot_signal_pre_post        - pokazuje wyniki detekcji  przed i po zrobieniu 
+                            "postprocessingu" w final_algorithm
+                        
+plot_signal_with_concave_areas - self-explainatorty, ostatecznie jako 
+                            rysunek do pracy - ilustracja metod
+                
+plot_all_signals_with_peaks_final - wszystkie sygnaly klasy na jednym wykresie
+plot_all_signals_with_peaks_by_peak_type - jw, ale osobne histogramy dla p1, p2, p3
+
+plot_concave_signals        - po 20 przykladow z kazdej klasy
+
+plot_peak_features_boxplots - tworzenie boxplotow do wynikow z peaks_morphology
+
+plot_peak_detection_pie     - pie chart (ile % sygnalow ma wykryte wszystkie piki),
+                            w zamysle dla Klasy 4 zamiast UpSet plot
+
 @author: Hanna Jaworska
 """
 
-from collections import Counter
-from upsetplot import UpSet, from_memberships
-import itertools
+from upsetplot import UpSet
 import math
 import pandas as pd
 import numpy as np
@@ -29,12 +50,9 @@ from itertools import groupby
 #     except TypeError:
 #         return True  # np. int
 
-
-
 # def peak_signature(peaks):
 #     """Zwraca tuple wykrytych pików spośród P1, P2, P3"""
 #     return tuple(p for p in ["P1", "P2", "P3"] if has_peak(peaks.get(p)))
-
 
     
 def plot_upset_classic_postproc(results_pp, class_name):
@@ -247,7 +265,6 @@ def plot_signal_pre_post(
     plt.show()
     
     
-
 def plot_signal_with_concave_areas(dataset, filename):
     # znajdź element w dataset o podanej nazwie pliku
     item = next((d for d in dataset if d["file"] == filename), None)
@@ -625,8 +642,8 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
     features - lista kolumn do rysowania (np. ["Index","Height","Prominence","Width_50"])
     """
     cmap = load_cmap("Alexandrite")
-    median_color = cmap(0.15)  # ciemny turkus dla mediany
-    outlier_color = cmap(0.75)  # jasny fiolet dla outlierów
+    median_color = cmap.colors[0]  # ciemny turkus dla mediany
+    outlier_color = cmap.colors[6]  # jasny fiolet dla outlierów
 
     if features is None:
         features = ["Index","Height","Prominence","Width_50"]
@@ -635,12 +652,12 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharey=False)
         axes = axes.flatten()
 
-        for i, cls in enumerate(classes):
+        for i, class_id in enumerate(classes):
             ax = axes[i]
-            df_cls = df[df["Class"] == cls]
+            df_class_id = df[df["Class"] == class_id]
 
-            peaks_to_plot = ["P1","P2","P3"] if cls != "Class4" else ["P2"]
-            data = [df_cls[df_cls["Peak"]==p][feat].dropna() for p in peaks_to_plot]
+            peaks_to_plot = ["P1","P2","P3"] if class_id != "Class4" else ["P2"]
+            data = [df_class_id[df_class_id["Peak"]==p][feat].dropna() for p in peaks_to_plot]
 
             if not data:
                 continue
@@ -650,7 +667,7 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
                 patch_artist=True,
                 labels=peaks_to_plot,
                 medianprops=dict(color=median_color, linewidth=2),
-                flierprops=dict(marker='o', markerfacecolor=outlier_color, markersize=5,
+                flierprops=dict(marker='o', markerfacecolor="none", markersize=5,
                                 linestyle='none', markeredgecolor=outlier_color)
             )
 
@@ -658,7 +675,7 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
             for patch in bplot['boxes']:
                 patch.set(facecolor='white', edgecolor='black')
 
-            ax.set_title(f"{cls} — {feat}")
+            ax.set_title(f"{class_id} — {feat}")
             ax.grid(alpha=0.3)
             ax.set_ylabel(feat)
 
@@ -666,4 +683,58 @@ def plot_peak_features_boxplots(df, features=None, classes=("Class1","Class2","C
         plt.tight_layout(rect=[0,0,1,0.96])
         plt.show()
 
-            
+
+def plot_peak_detection_pie(results_combined, class_id, peak="P2"):
+    """
+    Rysuje wykres kołowy pokazujący ile sygnałów w danej klasie
+    ma wykryty dany pik, a ile nie.
+
+    results_combined : lista słowników po postprocess_peaks
+    class_id : str, np. "Class4"
+    peak : str, nazwa piku, np. "P1", "P2", "P3"
+    """
+    # filtrujemy tylko daną klasę
+    class_results = [d for d in results_combined if d["class"] == class_id]
+
+    # liczba sygnałów z wykrytym pikiem
+    has_peak_count = sum(1 for d in class_results if d.get("peaks_detected") and not math.isnan(d["peaks_detected"].get(peak, float('nan'))))
+    no_peak_count = len(class_results) - has_peak_count
+
+    # dane do wykresu
+    labels = [f"{peak} wykryty", f"{peak} nie wykryty"]
+    sizes = [has_peak_count, no_peak_count]
+    colors = ["#66b3ff", "#ff9999"]
+
+    plt.figure(figsize=(6,6))
+    plt.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90)
+    plt.title(f"Klasa {class_id[-1]}: wykrycie {peak} w sygnałach")
+    plt.show()
+    
+if __name__ == "__main__":
+    cmap = load_cmap("Alexandrite")
+    colors = cmap.colors
+    n = len(colors)
+    
+    fig, ax = plt.subplots(figsize=(n * 0.9, 2))
+    
+    for i, col in enumerate(colors):
+        ax.add_patch(
+            Rectangle(
+                (i, 0), 1, 1,
+                facecolor=col,
+                edgecolor="black"
+            )
+        )
+        ax.text(
+            i + 0.5, -0.15, str(i),
+            ha="center", va="top", fontsize=10
+        )
+    
+    ax.set_xlim(0, n)
+    ax.set_ylim(-0.4, 1)
+    ax.set_yticks([])
+    ax.set_xticks([])
+    ax.set_title("Paleta Alexandrite – indeksy kolorów")
+    ax.set_aspect("equal")
+    
+    plt.show()

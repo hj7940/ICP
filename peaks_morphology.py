@@ -3,30 +3,43 @@
 Created on Sat Dec 20 20:24:09 2025
 
 Liczenie dla kazdego piku: prominence, width (do funkcji scipy.signal.find_peaks)
+oraz index (polozenie na osi x - do zakresow),
+sprawdzenie rozkladu normalnego
+generowanie boxplotow 
 @author: User
 """
 
 from scipy.signal import peak_prominences, peak_widths
-
-import os
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from methods import (concave, curvature, modified_scholkmann_old,
-                     modified_scholkmann, 
-                     line_distance, hilbert_envelope, wavelet)
-from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
-                    generate_ranges_for_all_files, compute_ranges_avg)
-from main import peak_detection
-from main import (
-                  it1, it1_smooth_4Hz, it1_smooth_3Hz,
-                  ranges_all_time, ranges_all_amps, compute_peak_metrics,
-                  df_ranges_time, df_ranges_amps)
-from scipy.stats import shapiro, anderson, kstest, norm
+from main import it1
+from scipy.stats import shapiro, anderson, kstest
 from all_plots import plot_peak_features_boxplots
 
 
 def compute_reference_peak_features(dataset, peaks=("P1","P2","P3")):
+    """
+    Liczenie cech pikow (referencyjnych):
+        - wysokosc height
+        - wyrazistosc prominence
+        - polozenie w czasie (index)
+        - szerokość piku dla różnych poziomów względnej wysokości (width)
+
+    Parameters
+    ----------
+    dataset : list of ditcs
+        Lista slownikow, z ktorych kazdy zawiera infomacje o pojedynczym sygnale
+    peaks : tuple of str
+        Nazwy pików referencyjnych, które mają być analizowane.
+        Domyślnie ``("P1", "P2", "P3")``
+
+    Returns
+    -------
+    pandas.DataFrame
+        Tabela, w której każdy wiersz odpowiada jednemu pikowi referencyjnemu
+        w jednym sygnale
+
+    """
     rows = []
 
     for item in dataset:
@@ -67,6 +80,33 @@ def compute_reference_peak_features(dataset, peaks=("P1","P2","P3")):
 
 
 def test_normality_SAK(x, alpha=0.05):
+    """
+    Testy normalnosci rozkladu:
+        - Shapiro-Wilka,
+        - Andersona-Darlinga (dla rozkladu normalnego)
+        - Kolomogorowa-Smirnowa
+
+    Parameters
+    ----------
+    x : TYPE
+        DESCRIPTION.
+    alpha : float, optional
+        Poziom istotnosci - domyslnie 0.05
+
+    Returns
+    -------
+    dict
+        Słownik zawierający:
+        - ``N`` – liczebność próby,
+        - ``Shapiro_p`` – wartość p testu Shapiro–Wilka,
+        - ``Shapiro_normal`` – wynik testu (True/False),
+        - ``AD_stat`` – statystyka testu Andersona–Darlinga,
+        - ``AD_crit_5`` – wartość krytyczna dla poziomu 5%,
+        - ``AD_normal`` – wynik testu Andersona–Darlinga,
+        - ``KS_p`` – wartość p testu Kołmogorowa–Smirnowa,
+        - ``KS_normal`` – wynik testu KS.
+
+    """
     x = np.asarray(x)
     x = x[~np.isnan(x)]
 
@@ -105,7 +145,33 @@ def test_normality_SAK(x, alpha=0.05):
 
     return res
 
-def robust_aggregate(df, value_col):
+def aggregate(df, value_col):
+    """
+    Funkcja oblicza statystyki oparte na medianie i rozstępie
+    międzykwartylowym (IQR), dodatkowo liczona sa wasy (1.5 * IQR)
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DESCRIPTION.
+    value_col : str
+        Nazwa kolumny w ``df``, dla której obliczane są statystyki.
+
+    Returns
+    -------
+    pandas.Series
+        Zestaw statystyk opisowych:
+        - ``median`` – mediana,
+        - ``min`` – wartość minimalna,
+        - ``max`` – wartość maksymalna,
+        - ``q25`` – pierwszy kwartyl,
+        - ``q75`` – trzeci kwartyl,
+        - ``iqr`` – rozstęp międzykwartylowy,
+        - ``lower_whisker`` – dolny wąs boxplotu (Q1 − 1.5·IQR),
+        - ``upper_whisker`` – górny wąs boxplotu (Q3 + 1.5·IQR),
+        - ``zero_frac`` – udział wartości równych zero w próbie.
+
+    """
     x = df[value_col].dropna().values
 
     q25 = np.percentile(x, 25)
@@ -154,6 +220,7 @@ df_normality["Normal_Distribution"] = (
     df_normality["KS_normal"]
 )
 
+# df_normality.to_csv("normality.csv", index=False)
 # odrzucenie rozkladu normalnego ! 
 
 features = ["Index", "Height", "Prominence", "Width_50"]
@@ -162,10 +229,10 @@ df_agg = (
     df_all
     .groupby(["Class", "Peak"])
     .apply(lambda g: pd.concat([
-        robust_aggregate(g, "Index").add_prefix("idx_"),
-        robust_aggregate(g, "Height").add_prefix("h_"),
-        robust_aggregate(g, "Prominence").add_prefix("prom_"),
-        robust_aggregate(g, "Width_50").add_prefix("w50_"),
+        aggregate(g, "Index").add_prefix("idx_"),
+        aggregate(g, "Height").add_prefix("h_"),
+        aggregate(g, "Prominence").add_prefix("prom_"),
+        aggregate(g, "Width_50").add_prefix("w50_"),
     ]))
     .reset_index()
 )

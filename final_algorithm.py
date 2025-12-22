@@ -24,24 +24,21 @@ dataset : list
     
 """
 
-# import os
 import copy
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 # from data_handling import load_dataset, smooth_dataset
 # from methods import (concave, curvature, modified_scholkmann, 
 #                      line_distance, hilbert_envelope, wavelet)
 # from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
 #                     generate_ranges_for_all_files, compute_ranges_avg)
-
 import math
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   it1, it1_smooth_4Hz, it1_smooth_3Hz,
                   ranges_all_time, ranges_all_amps)
-from all_plots import (plot_files_in_class, 
-                       plot_upset_classic_postproc, plot_signal_pre_post,
-                       plot_signal_with_concave_areas)
+from all_plots import (plot_files_in_class, plot_upset_classic_postproc, 
+                       plot_signal_pre_post, plot_signal_with_concave_areas, 
+                       plot_peak_detection_pie)
 
 # do sprawdzenia
 
@@ -481,33 +478,6 @@ def select_problematic_rows(results_combined, max_dist=20):
     return selected
 
 
-def plot_peak_detection_pie(results_combined, class_id, peak="P2"):
-    """
-    Rysuje wykres kołowy pokazujący ile sygnałów w danej klasie
-    ma wykryty dany pik, a ile nie.
-
-    results_combined : lista słowników po postprocess_peaks
-    class_id : str, np. "Class4"
-    peak : str, nazwa piku, np. "P1", "P2", "P3"
-    """
-    # filtrujemy tylko daną klasę
-    class_results = [d for d in results_combined if d["class"] == class_id]
-
-    # liczba sygnałów z wykrytym pikiem
-    has_peak_count = sum(1 for d in class_results if d.get("peaks_detected") and not math.isnan(d["peaks_detected"].get(peak, float('nan'))))
-    no_peak_count = len(class_results) - has_peak_count
-
-    # dane do wykresu
-    labels = [f"{peak} wykryty", f"{peak} nie wykryty"]
-    sizes = [has_peak_count, no_peak_count]
-    colors = ["#66b3ff", "#ff9999"]
-
-    plt.figure(figsize=(6,6))
-    plt.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90)
-    plt.title(f"Klasa {class_id[-1]}: wykrycie {peak} w sygnałach")
-    plt.show()
-    
-    
 def compute_metrics_pre_postproc(dataset, class_name):
     """
     Oblicza metryki błędów dla danych przed postprocessingiem.
@@ -776,12 +746,12 @@ columns=[
 ])
 
 datasets_dict = {
-    "it1": it1,
-    "it1_smooth_4Hz": it1_smooth_4Hz,
-    "it1_smooth_3Hz": it1_smooth_3Hz,
-    # "it2": it2,
-    # "it2_smooth_4Hz": it2_smooth_4Hz,
-    # "it2_smooth_3Hz": it2_smooth_3Hz,
+    # "it1": it1,
+    # "it1_smooth_4Hz": it1_smooth_4Hz,
+    # "it1_smooth_3Hz": it1_smooth_3Hz,
+    "it2": it2,
+    "it2_smooth_4Hz": it2_smooth_4Hz,
+    "it2_smooth_3Hz": it2_smooth_3Hz,
 }
 
 

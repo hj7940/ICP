@@ -1,0 +1,121 @@
+Class Peak Mean_XY_Error Min_XY_Error Peak_Count Num_Signals_in_Class Num_Signals_with_Peak Config
+Class1 P1 0,201 0,201 0,980 300 294 it1_avg_concave_d2x=-0-002,it1_pm3_concave_d2x=-0-002
+Class1 P1 0,201 0,201 0,993 300 298 it1_avg_concave,it1_avg_concave_d2x=0-002
+Class1 P1 0,201 0,201 0,977 300 293 it1_full_concave_d2x=-0-002
+Class1 P1 0,202 0,201 1,000 300 299 it1_full_concave,it1_full_concave_d2x=0-002
+Class1 P1 0,205 0,205 0,960 300 288 it1_full_concave_tuned,it1_none_concave_tuned,it1_pm3_concave_tuned
+Class1 P1 0,206 0,206 0,953 300 286 it1_avg_concave_tuned
+Class1 P1 0,210 0,210 0,937 300 281 it1_whiskers_concave,it1_whiskers_concave_d2x=0-002,it1_whiskers_concave_tuned
+Class1 P1 0,211 0,211 0,917 300 275 it1_whiskers_concave_d2x=-0-002
+Class1 P1 0,363 0,200 1,013 300 300 it1_pm3_concave,it1_pm3_concave_d2x=0-002
+Class1 P1 1,118 0,953 1,180 300 300 it1_smooth_3Hz_avg_wavelet
+Class1 P2 3,112 3,112 0,920 300 276 it1_smooth_4Hz_avg_line_distance_8,it1_smooth_4Hz_avg_line_perpendicular_8
+Class1 P2 3,310 3,275 0,923 300 276 it1_smooth_4Hz_avg_curvature
+Class1 P2 3,674 3,610 1,06 300 282 it1_smooth_4Hz_avg_wavelet
+Class1 P2 5,143 3,256 1,023 300 273 it1_smooth_4Hz_whiskers_line_distance_8,it1_smooth_4Hz_whiskers_line_perpendicular_8
+Class1 P2 6,104 3,621 1,227 300 277 it1_smooth_4Hz_whiskers_wavelet
+Class1 P2 6,176 3,489 1,09 300 276 it1_smooth_4Hz_whiskers_curvature
+Class1 P2 6,250 2,630 1,320 300 281 it1_whiskers_wavelet
+Class1 P2 9,248 3,331 2,327 300 272 it1_whiskers_curvature
+Class1 P2 13,435 3,196 1,603 300 280 it1_full_line_distance_8,it1_full_line_perpendicular_8
+Class1 P2 13,622 13,468 1,073 300 278 it1_smooth_3Hz_avg_wavelet
+Class1 P3 4,735 1,412 1,150 300 289 it1_smooth_4Hz_full_concave,it1_smooth_4Hz_full_concave_d2x=0-002
+Class1 P3 4,747 1,413 1,127 300 283 it1_smooth_4Hz_full_concave_tuned
+Class1 P3 4,764 1,418 1,123 300 282 it1_smooth_4Hz_whiskers_concave_tuned
+Class1 P3 4,768 1,409 1,140 300 286 it1_smooth_4Hz_whiskers_concave,it1_smooth_4Hz_whiskers_concave_d2x=0-002
+Class1 P3 4,807 2,040 1,05 300 274 it1_smooth_3Hz_pm3_concave,it1_smooth_3Hz_pm3_concave_d2x=0-002
+Class1 P3 5,137 2,819 1,007 300 271 it1_smooth_4Hz_pm3_modified_scholkmann0-5
+Class1 P3 5,375 1,486 1,160 300 284 it1_smooth_4Hz_pm3_concave_tuned
+Class1 P3 5,383 2,178 1,053 300 270 it1_pm3_modified_scholkmann0-5
+Class1 P3 5,430 1,478 1,190 300 291 it1_smooth_4Hz_pm3_concave,it1_smooth_4Hz_pm3_concave_d2x=0-002
+Class1 P3 5,476 5,476 0,917 300 275 it1_smooth_4Hz_avg_line_distance_8,it1_smooth_4Hz_avg_line_perpendicular_8
+Class2 P1 0,498 0,495 0,927 300 277 it1_avg_concave_d2x=0-002
+Class2 P1 0,500 0,496 0,923 300 276 it1_avg_concave
+Class2 P1 1,460 1,460 1,000 300 300 it1_smooth_3Hz_avg_hilbert
+Class2 P1 1,975 0,591 1,047 300 276 it1_whiskers_concave
+Class2 P1 2,061 0,599 1,09 300 279 it1_whiskers_concave_d2x=0-002
+Class2 P1 2,299 2,299 0,960 300 288 it1_smooth_3Hz_avg_line_distance_8,it1_smooth_3Hz_avg_line_perpendicular_8
+Class2 P1 2,896 2,754 1,210 300 300 it1_smooth_4Hz_avg_wavelet
+Class2 P1 3,100 3,100 1,000 300 300 it1_smooth_4Hz_avg_line_distance_8,it1_smooth_4Hz_avg_line_perpendicular_8
+Class2 P1 3,100 3,100 1,000 300 300 it1_smooth_4Hz_avg_hilbert
+Class2 P1 3,377 1,777 1,390 300 300 it1_smooth_3Hz_avg_wavelet
+Class2 P2 4,171 3,283 1,000 300 283 it1_smooth_4Hz_whiskers_line_distance_8,it1_smooth_4Hz_whiskers_line_perpendicular_8
+Class2 P2 4,416 3,190 1,02 300 279 it1_smooth_4Hz_whiskers_curvature
+Class2 P2 4,488 1,892 1,230 300 279 it1_whiskers_hilbert
+Class2 P2 4,598 2,996 1,067 300 280 it1_whiskers_line_distance_8,it1_whiskers_line_perpendicular_8
+Class2 P2 5,007 3,674 1,203 300 279 it1_smooth_4Hz_whiskers_wavelet
+Class2 P2 5,055 2,144 1,163 300 278 it1_whiskers_concave,it1_whiskers_concave_tuned
+Class2 P2 5,091 3,265 1,193 300 279 it1_whiskers_wavelet
+Class2 P2 5,460 2,192 1,217 300 297 it1_smooth_4Hz_full_line_distance_8,it1_smooth_4Hz_full_line_perpendicular_8
+Class2 P2 5,593 2,489 1,193 300 282 it1_full_concave_tuned
+Class2 P2 5,624 2,253 1,250 300 292 it1_full_line_distance_8,it1_full_line_perpendicular_8
+Class2 P3 7,531 3,579 1,430 300 287 it1_full_hilbert
+Class2 P3 7,758 4,552 1,187 300 272 it1_whiskers_concave_d2x=0-002
+Class2 P3 7,781 4,098 1,417 300 287 it1_whiskers_hilbert
+Class2 P3 7,891 4,139 1,210 300 273 it1_full_concave_d2x=0-002
+Class2 P3 9,550 3,879 1,573 300 289 it1_pm3_hilbert
+Class2 P3 10,027 4,979 1,343 300 282 it1_pm3_concave_d2x=0-002
+Class2 P3 12,866 4,599 1,583 300 299 it1_smooth_4Hz_whiskers_curvature
+Class2 P3 12,879 7,138 1,413 300 298 it1_smooth_3Hz_whiskers_curvature
+Class2 P3 13,503 3,610 3,280 300 272 it1_whiskers_curvature
+Class2 P3 13,554 9,047 1,317 300 296 it1_smooth_3Hz_whiskers_line_distance_8,it1_smooth_3Hz_whiskers_line_perpendicular_8
+Class3 P1 1,376 1,224 1,143 300 281 it1_smooth_3Hz_whiskers_wavelet
+Class3 P1 1,377 1,226 1,150 300 283 it1_smooth_3Hz_full_wavelet
+Class3 P1 1,523 1,371 1,167 300 286 it1_smooth_3Hz_pm3_wavelet
+Class3 P1 1,707 1,614 1,177 300 298 it1_smooth_4Hz_whiskers_wavelet
+Class3 P1 1,708 1,616 1,180 300 299 it1_smooth_4Hz_full_wavelet
+Class3 P1 1,710 1,617 1,187 300 300 it1_smooth_4Hz_avg_wavelet
+Class3 P1 1,722 1,722 0,970 300 291 it1_smooth_3Hz_full_curvature
+Class3 P1 1,723 1,723 0,963 300 289 it1_smooth_3Hz_whiskers_curvature
+Class3 P1 1,849 1,617 1,203 300 300 it1_smooth_4Hz_pm3_wavelet
+Class3 P1 1,896 1,799 0,987 300 293 it1_smooth_3Hz_pm3_curvature
+Class3 P2 2,418 2,393 0,937 300 280 it1_smooth_4Hz_avg_hilbert
+Class3 P2 3,009 2,505 1,177 300 293 it1_smooth_4Hz_avg_wavelet
+Class3 P2 3,361 2,760 1,053 300 292 it1_smooth_4Hz_avg_curvature
+Class3 P2 3,378 3,378 0,970 300 291 it1_smooth_4Hz_avg_line_distance_8,it1_smooth_4Hz_avg_line_perpendicular_8
+Class3 P2 3,674 2,274 1,117 300 285 it1_whiskers_concave_d2x=0-002
+Class3 P2 3,729 2,391 1,07 300 279 it1_whiskers_concave,it1_whiskers_concave_tuned
+Class3 P2 4,342 3,764 0,977 300 275 it1_smooth_4Hz_whiskers_concave,it1_smooth_4Hz_whiskers_concave_d2x=0-002
+Class3 P2 4,354 3,774 0,973 300 274 it1_smooth_4Hz_whiskers_concave_tuned
+Class3 P2 4,456 3,231 1,197 300 281 it1_whiskers_wavelet
+Class3 P2 4,617 2,728 1,143 300 287 it1_full_concave_tuned
+Class3 P3 10,402 1,546 1,853 300 295 it1_full_hilbert
+Class3 P3 10,419 1,634 1,843 300 295 it1_whiskers_hilbert
+Class3 P3 10,950 2,923 1,767 300 297 it1_full_concave_d2x=0-002
+Class3 P3 11,007 3,037 1,763 300 297 it1_whiskers_concave_d2x=0-002
+Class3 P3 11,473 3,388 1,680 300 291 it1_whiskers_line_distance_8,it1_whiskers_line_perpendicular_8
+Class3 P3 11,537 4,206 1,610 300 291 it1_full_concave
+Class3 P3 11,575 3,308 1,710 300 292 it1_full_line_distance_8,it1_full_line_perpendicular_8
+Class3 P3 11,595 4,323 1,607 300 291 it1_whiskers_concave
+Class3 P3 11,667 1,703 1,983 300 300 it1_pm3_hilbert
+Class3 P3 11,731 3,093 1,853 300 300 it1_pm3_concave_d2x=0-002
+Class4 P1   0,990 100 98 it1_smooth_3Hz_none_concave,it1_smooth_3Hz_none_concave_d2x=0-002,it1_smooth_3Hz_none_concave_tuned
+Class4 P1   0,990 100 99 it1_smooth_3Hz_none_modified_scholkmann0-5,it1_smooth_3Hz_none_modified_scholkmann1,it1_smooth_4Hz_none_modified_scholkmann0-5,it1_smooth_4Hz_none_modified_scholkmann1
+Class4 P1   1,000 100 100 it1_none_modified_scholkmann0-5,it1_none_modified_scholkmann1
+Class4 P1   1,01 100 95 it1_none_concave,it1_none_concave_tuned
+Class4 P1   1,02 100 99 it1_smooth_4Hz_none_concave,it1_smooth_4Hz_none_concave_d2x=0-002,it1_smooth_4Hz_none_concave_tuned
+Class4 P1   1,04 100 100 it1_smooth_4Hz_none_hilbert
+Class4 P1   1,150 100 100 it1_smooth_3Hz_none_hilbert
+Class4 P1   1,380 100 100 it1_none_hilbert
+Class4 P1   1,470 100 100 it1_none_concave_d2x=0-002
+Class4 P1   2,140 100 100 it1_smooth_3Hz_none_line_distance_8,it1_smooth_3Hz_none_line_perpendicular_8
+Class4 P2 0,261 0,181 0,950 100 94 it1_full_concave
+Class4 P2 0,279 0,179 0,970 100 95 it1_pm3_concave
+Class4 P2 0,341 0,242 0,930 100 91 it1_whiskers_concave_d2x=0-002
+Class4 P2 0,395 0,082 1,08 100 98 it1_full_concave_d2x=0-002
+Class4 P2 0,466 0,081 1,11 100 99 it1_pm3_concave_d2x=0-002
+Class4 P2 0,903 0,903 0,930 100 93 it1_smooth_4Hz_full_concave,it1_smooth_4Hz_full_concave_d2x=0-002
+Class4 P2 0,965 0,909 1,000 100 99 it1_smooth_4Hz_pm3_concave,it1_smooth_4Hz_pm3_concave_d2x=0-002
+Class4 P2 1,132 0,179 1,01 100 95 it1_none_concave
+Class4 P2 1,239 1,239 0,920 100 92 it1_smooth_3Hz_full_concave,it1_smooth_3Hz_full_concave_d2x=0-002
+Class4 P2 1,337 1,337 0,980 100 98 it1_smooth_3Hz_pm3_concave,it1_smooth_3Hz_pm3_concave_d2x=0-002
+Class4 P3   0,990 100 98 it1_smooth_3Hz_none_concave,it1_smooth_3Hz_none_concave_d2x=0-002,it1_smooth_3Hz_none_concave_tuned
+Class4 P3   0,990 100 99 it1_smooth_3Hz_none_modified_scholkmann0-5,it1_smooth_3Hz_none_modified_scholkmann1,it1_smooth_4Hz_none_modified_scholkmann0-5,it1_smooth_4Hz_none_modified_scholkmann1
+Class4 P3   1,000 100 100 it1_none_modified_scholkmann0-5,it1_none_modified_scholkmann1
+Class4 P3   1,01 100 95 it1_none_concave,it1_none_concave_tuned
+Class4 P3   1,02 100 99 it1_smooth_4Hz_none_concave,it1_smooth_4Hz_none_concave_d2x=0-002,it1_smooth_4Hz_none_concave_tuned
+Class4 P3   1,04 100 100 it1_smooth_4Hz_none_hilbert
+Class4 P3   1,150 100 100 it1_smooth_3Hz_none_hilbert
+Class4 P3   1,380 100 100 it1_none_hilbert
+Class4 P3   1,470 100 100 it1_none_concave_d2x=0-002
+Class4 P3   2,140 100 100 it1_smooth_3Hz_none_line_distance_8,it1_smooth_3Hz_none_line_perpendicular_8
