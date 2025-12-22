@@ -97,7 +97,7 @@ def smooth_butter(x, cutoff=1, fs=1, order=3):
         są tłumione. Domyślnie 1 Hz.
     fs : float, optional
         Częstotliwość próbkowania sygnału [Hz].
-        Domyślnie 180 Hz.
+        Domyślnie 1 Hz.
     order : int, optional
         Rząd filtru Butterwortha.
         Wyższy rząd oznacza ostrzejsze przejście pomiędzy pasmem

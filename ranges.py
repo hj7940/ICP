@@ -7,7 +7,7 @@ Wyznaczone na podstawie it1 oraz funkcja generujaca zakrwsy dla kazdego pliku
 w datasecie.
 Rodzaje:
     - full (minimum - maximum, łacznie z wartosciami odstajacymi)
-    - pm3 (minimum - maximum +- 3 probki)
+    - pm3 (minimum - maximum +- 3 probki) *
     - whiskers (Q1-1.5*IQR - Q3+1.5*IQR)
 Zakresy w osi x (numery probek): time_
 Zakresy w osi y (amplituda): amps_

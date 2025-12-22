@@ -150,7 +150,7 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
     """
     metrics_list = []
     class_signals = [item for item in detection_results if item["class"] == class_name]
-
+    tolerance = 3
     for item in class_signals:
         file_name = item["file"]
         signal_df = item["signal"]
@@ -169,6 +169,9 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
                 "Mean_Y_Error": np.nan,
                 "Mean_XY_Error": np.nan,
                 "Min_XY_Error": np.nan,
+                "TP": np.nan,
+                "FP": np.nan,
+                "FN": 1 if len(detected) == 0 else np.nan,
                 "Peak_Count": len(detected),
                 "Reference_Peaks": ref_idx,
                 "Detected_Peaks": list(detected)
@@ -181,6 +184,11 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
         dx = abs(t_detected - t[ref_idx])
         dy = abs(y_detected - y[ref_idx])
         dxy = np.sqrt(dx**2 + dy**2)
+        
+        # jesli wykryto w tolerancji +-3 probki TP=1, inaczej TP=0
+        TP = int(any(dx<=tolerance))
+        FN = int(TP == 0)
+        FP = sum(dx>tolerance)
 
         metrics_list.append({
             "Class": class_name,
@@ -190,6 +198,9 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
             "Mean_Y_Error": np.mean(dy),
             "Mean_XY_Error": np.mean(dxy),
             "Min_XY_Error": np.min(dxy),
+            "TP": TP,
+            "FP": FP,
+            "FN": FN,
             "Peak_Count": len(detected),
             "Reference_Peaks": ref_idx,
             "Detected_Peaks": list(detected)
@@ -198,9 +209,9 @@ def compute_peak_metrics(detection_results, peak_name, class_name):
     df_metrics = pd.DataFrame(metrics_list)
     num_signals_in_class = len(class_signals)
     num_detected = df_metrics["Peak_Count"].gt(0).sum()
-    df_metrics["Num_Signals_in_Class"] = num_signals_in_class
-    df_metrics["Num_Signals_with_Peak"] = num_detected
-
+    # df_metrics["Num_Signals_in_Class"] = num_signals_in_class
+    # df_metrics["Num_Signals_with_Peak"] = num_detected
+    df_metrics["%_Signals_with_Peak"] = num_detected/num_signals_in_class
     return df_metrics
 
 
@@ -560,37 +571,230 @@ if __name__ == "__main__":
     os.makedirs(wyniki_base, exist_ok=True)
     
     
-    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    det = peak_detection(
+        dataset=it1,
+        method_name="concave",
+        time_ranges=df_ranges_time.loc["it1", "full"],
+        amp_ranges=df_ranges_amps.loc["it1", "full"],
+        ranges_name="full",
+        tuned_params=None
+        )
+        
+    plot_all_signals_with_peaks_by_peak_type(
+        detection_results=det,
+        method_name="concave",
+        ranges_name="full"
+    )
+
+    all_metrics_C = []
+    for peak_name in ["P1", "P2", "P3"]:
+        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+            df_concave = compute_peak_metrics(
+                det, peak_name, class_name
+            )
+            df_concave["Method"] = "concave"
+            all_metrics_C.append(df_concave)
+
+    df_all_metrics_C = pd.concat(all_metrics_C, ignore_index=True)
+    df_avg_metrics_C = (
+        df_all_metrics_C
+        .groupby(["Class", "Peak", "Method"])
+    .agg(
+        # błędy — średnie
+        Mean_X_Error=("Mean_X_Error", "mean"),
+        Mean_Y_Error=("Mean_Y_Error", "mean"),
+        Mean_XY_Error=("Mean_XY_Error", "mean"),
+        Min_XY_Error=("Min_XY_Error", "mean"),
+
+        # confusion-like — sumy
+        TP=("TP", "sum"),
+        FP=("FP", "sum"),
+        FN=("FN", "sum"),
+
+        # dodatkowe
+        Peak_Count=("Peak_Count", "mean"),
+        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    )
+    .reset_index()
+    )
     
-    # det = peak_detection(
-    # dataset=it1,
-    # method_name="concave_tuned",
-    # time_ranges=df_ranges_time.loc["it1", "full"],
-    # amp_ranges=df_ranges_amps.loc["it1", "full"],
-    # ranges_name="full",
-    # tuned_params=tuned_params
-    # )
     
-    # plot_all_signals_with_peaks_by_peak_type(
-    #     detection_results=det,
-    #     method_name="concave_tuned",
-    #     ranges_name="full"
-    # )
+    det2 = peak_detection(
+        dataset=it1,
+        method_name="concave_d2x=-0-002",
+        time_ranges=df_ranges_time.loc["it1", "full"],
+        amp_ranges=df_ranges_amps.loc["it1", "full"],
+        ranges_name="full",
+        tuned_params=None
+        )
+        
+    plot_all_signals_with_peaks_by_peak_type(
+        detection_results=det2,
+        method_name="concave_d2x=-0-002",
+        ranges_name="full"
+    )
+
+    all_metrics_C2 = []
+    for peak_name in ["P1", "P2", "P3"]:
+        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+            df_concave_2 = compute_peak_metrics(
+                det2, peak_name, class_name
+            )
+            df_concave_2["Method"] = "concave_d2x=-0-002"
+            all_metrics_C2.append(df_concave_2)
+
+    df_all_metrics_C2 = pd.concat(all_metrics_C2, ignore_index=True)
+    df_avg_metrics_C2 = (
+        df_all_metrics_C2
+        .groupby(["Class", "Peak", "Method"])
+    .agg(
+        # błędy — średnie
+        Mean_X_Error=("Mean_X_Error", "mean"),
+        Mean_Y_Error=("Mean_Y_Error", "mean"),
+        Mean_XY_Error=("Mean_XY_Error", "mean"),
+        Min_XY_Error=("Min_XY_Error", "mean"),
+
+        # confusion-like — sumy
+        TP=("TP", "sum"),
+        FP=("FP", "sum"),
+        FN=("FN", "sum"),
+
+        # dodatkowe
+        Peak_Count=("Peak_Count", "mean"),
+        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    )
+    .reset_index()
+    )
+
+
+    det3 = peak_detection(
+    dataset=it1,
+    method_name="concave_d2x=0-002",
+    time_ranges=df_ranges_time.loc["it1", "full"],
+    amp_ranges=df_ranges_amps.loc["it1", "full"],
+    ranges_name="full",
+    tuned_params=None
+    )
     
-    # det = peak_detection(
-    # dataset=it1,
-    # method_name="concave_tuned",
-    # time_ranges=None,
-    # amp_ranges=None,
-    # ranges_name="none",
-    # tuned_params=tuned_params
-    # )
+    plot_all_signals_with_peaks_by_peak_type(
+        detection_results=det3,
+        method_name="concave_d2x=0-002",
+        ranges_name="full"
+    )
     
-    # plot_all_signals_with_peaks_by_peak_type(
-    #     detection_results=det,
-    #     method_name="concave_tuned",
-    #     ranges_name="none"
-    # )
+    all_metrics_C3 = []
+    for peak_name in ["P1", "P2", "P3"]:
+        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+            df_concave_3 = compute_peak_metrics(
+                det3, peak_name, class_name
+            )
+            df_concave_3["Method"] = "concave_d2x=0-002"
+            all_metrics_C3.append(df_concave_3)
+
+    df_all_metrics_C3 = pd.concat(all_metrics_C3, ignore_index=True)
+    df_avg_metrics_C3 = (
+        df_all_metrics_C3
+        .groupby(["Class", "Peak", "Method"])
+    .agg(
+        # błędy — średnie
+        Mean_X_Error=("Mean_X_Error", "mean"),
+        Mean_Y_Error=("Mean_Y_Error", "mean"),
+        Mean_XY_Error=("Mean_XY_Error", "mean"),
+        Min_XY_Error=("Min_XY_Error", "mean"),
+
+        # confusion-like — sumy
+        TP=("TP", "sum"),
+        FP=("FP", "sum"),
+        FN=("FN", "sum"),
+
+        # dodatkowe
+        Peak_Count=("Peak_Count", "mean"),
+        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    )
+    .reset_index()
+    )
+    
+    det4 = peak_detection(
+    dataset=it1,
+    method_name="concave_tuned",
+    time_ranges=df_ranges_time.loc["it1", "full"],
+    amp_ranges=df_ranges_amps.loc["it1", "full"],
+    ranges_name="full",
+    tuned_params=tuned_params
+    )
+    
+    plot_all_signals_with_peaks_by_peak_type(
+        detection_results=det4,
+        method_name="concave_tuned",
+        ranges_name="full"
+    )
+    
+    all_metrics_C4 = []
+    for peak_name in ["P1", "P2", "P4"]:
+        for class_name in ["Class1", "Class2", "Class4", "Class4"]:
+            df_concave_4 = compute_peak_metrics(
+                det4, peak_name, class_name
+            )
+            df_concave_4["Method"] = "concave_tuned"
+            all_metrics_C4.append(df_concave_4)
+
+    df_all_metrics_C4 = pd.concat(all_metrics_C4, ignore_index=True)
+    df_avg_metrics_C4 = (
+        df_all_metrics_C4
+        .groupby(["Class", "Peak", "Method"])
+    .agg(
+        # błędy — średnie
+        Mean_X_Error=("Mean_X_Error", "mean"),
+        Mean_Y_Error=("Mean_Y_Error", "mean"),
+        Mean_XY_Error=("Mean_XY_Error", "mean"),
+        Min_XY_Error=("Min_XY_Error", "mean"),
+
+        # confusion-like — sumy
+        TP=("TP", "sum"),
+        FP=("FP", "sum"),
+        FN=("FN", "sum"),
+
+        # dodatkowe
+        Peak_Count=("Peak_Count", "mean"),
+        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    )
+    .reset_index()
+    )
+    
+    
+    df_all_methods = pd.concat(
+        [
+            df_avg_metrics_C,
+            df_avg_metrics_C2,
+            df_avg_metrics_C3,
+            df_avg_metrics_C4
+        ],
+        ignore_index=True
+    )
+    
+    method_order = [
+        "concave",
+        "concave_d2x=-0-002",
+        "concave_d2x=0-002",
+        "concave_tuned"
+    ]
+    
+    df_all_methods["Method"] = pd.Categorical(
+        df_all_methods["Method"],
+        categories=method_order,
+        ordered=True
+    )
+    
+    df_all_methods = (
+        df_all_methods
+        .sort_values(["Class", "Peak", "Method"])
+        .reset_index(drop=True)
+    )
+
+    df_all_methods.to_csv("metrics_tuning_of_concave.csv", index=False)
+
+
     # plot_concave_signals(it1)
     
     # it2_results = {k: v for k, v in results.items() if k.startswith("it2")}
@@ -649,56 +853,56 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    # it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    dfs_avg = []
-    for config_name, method_dict in it1_results.items():
-        for method_name, (df_all, df_avg) in method_dict.items():
-            df = df_avg.copy()
-            df["Config"] = f"{config_name}_{method_name}"
-            dfs_avg.append(df)
-    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    # dfs_avg = []
+    # for config_name, method_dict in it1_results.items():
+    #     for method_name, (df_all, df_avg) in method_dict.items():
+    #         df = df_avg.copy()
+    #         df["Config"] = f"{config_name}_{method_name}"
+    #         dfs_avg.append(df)
+    # df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
     
     
-    peaks = ["P1","P2","P3"]
-    classes = ["Class1","Class2","Class3","Class4"]
+    # peaks = ["P1","P2","P3"]
+    # classes = ["Class1","Class2","Class3","Class4"]
     
-    top_xy_dfs = {}
-    top_minxy_dfs = {}
+    # top_xy_dfs = {}
+    # top_minxy_dfs = {}
     
-    min_fraction = 0.90
-    # max_XY_Error = 30
+    # min_fraction = 0.90
+    # # max_XY_Error = 30
     
-    # Tworzenie osobnych DF-ów
-    for class_id in classes:
-        for pk in peaks:
-            # --- filtr po udziale sygnałów ---
-            df_filtered = df_it1_avg[
-                (df_it1_avg["Peak"] == pk) &
-                (df_it1_avg["Class"] == class_id) &
-                (df_it1_avg["Num_Signals_with_Peak"] / df_it1_avg["Num_Signals_in_Class"] >= min_fraction)
-                #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
-                #(df_it1_avg["Peak_Count"] <= 10)
-            ].copy()
+    # # Tworzenie osobnych DF-ów
+    # for class_id in classes:
+    #     for pk in peaks:
+    #         # --- filtr po udziale sygnałów ---
+    #         df_filtered = df_it1_avg[
+    #             (df_it1_avg["Peak"] == pk) &
+    #             (df_it1_avg["Class"] == class_id) &
+    #             (df_it1_avg["Num_Signals_with_Peak"] / df_it1_avg["Num_Signals_in_Class"] >= min_fraction)
+    #             #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+    #             #(df_it1_avg["Peak_Count"] <= 10)
+    #         ].copy()
             
-            error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+    #         error_cols = ["Mean_XY_Error", "Min_XY_Error"]
             
-            df_filtered[error_cols] = df_filtered[error_cols].round(10)
-            #print(df_filtered.columns.tolist())
-            df_merged = merge_identical_configs_before_top(df_filtered)
+    #         df_filtered[error_cols] = df_filtered[error_cols].round(10)
+    #         #print(df_filtered.columns.tolist())
+    #         df_merged = merge_identical_configs_before_top(df_filtered)
             
-            # --- Mean_XY_Error ---
-            df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
-            top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+    #         # --- Mean_XY_Error ---
+    #         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+    #         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
     
-            # --- Min_XY_Error ---
-            df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
-            top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+    #         # --- Min_XY_Error ---
+    #         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+    #         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
     
-    cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    # cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
-    df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_90_NAJnajnowsze_d_2.csv", sep=' ', index=False)
+    # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    # df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_90_NAJnajnowsze_d_2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)

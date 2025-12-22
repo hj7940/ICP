@@ -453,9 +453,6 @@ def plot_all_signals_with_peaks_by_peak_type(
     - histogram gęstości pików automatycznych (red)
     """
 
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     n_classes = len(classes)
     n_peaks = len(peak_types)
 
@@ -463,7 +460,9 @@ def plot_all_signals_with_peaks_by_peak_type(
 
     titles_dict = {
         "concave": "Maksima w odcinkach wklęsłych",
-        "concave_tuned": "Maksima w odcinkach wklęsłych (parametry stroone)",
+        "concave_tuned": "Maksima w odcinkach wklęsłych (+parametry find_peaks)",
+        "concave_d2x=-0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: -0,002)",
+        "concave_d2x=0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: 0,002)",
         "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (0.5)",
         "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (1.0)",
         "curvature": "Maksymalna krzywizna",
@@ -472,6 +471,11 @@ def plot_all_signals_with_peaks_by_peak_type(
         "hilbert": "Transformata Hilberta",
         "wavelet": "Ciągła transformata falkowa"
     }
+    
+    ranges_dict = {
+        "full": "min-max",
+        "avg": "na podstawie średniej ruchomej",
+        "whiskers": "wąsy"}
 
     for i, class_name in enumerate(classes):
         # wybieramy tylko dane tej klasy
@@ -484,7 +488,7 @@ def plot_all_signals_with_peaks_by_peak_type(
 
         if not class_items:
             for j, peak_type in enumerate(peak_types):
-                axes[i, j].set_title(f"{class_name} – brak danych")
+                axes[i, j].set_title(f"Klasa {class_name[-1]} – brak danych")
             continue
 
         t = class_items[0]["signal"].iloc[:, 0].values
@@ -493,6 +497,13 @@ def plot_all_signals_with_peaks_by_peak_type(
 
         for j, peak_type in enumerate(peak_types):
             ax = axes[i, j]
+            
+            has_peaks = any(item["peaks_ref"].get(peak_type) is not None for item in class_items) or \
+                any(item["peaks_detected"].get(peak_type) for item in class_items)
+    
+            if not has_peaks:
+                ax.set_visible(False)
+                continue
 
             # --- rysujemy wszystkie sygnały ---
             for item in class_items:
@@ -519,13 +530,14 @@ def plot_all_signals_with_peaks_by_peak_type(
 
             ax_hist = ax.twinx()
             if manual_t:
-                ax_hist.hist(manual_t, bins=40, density=True, alpha=0.35, color="green", label="Piki referencyjne")
+                ax_hist.hist(manual_t, bins=40, density=False, alpha=0.35, color="green", label="Piki referencyjne")
             if auto_t:
-                ax_hist.hist(auto_t, bins=40, density=True, alpha=0.35, color="red", label="Piki wykryte")
+                ax_hist.hist(auto_t, bins=40, density=False, alpha=0.35, color="red", label="Piki wykryte")
 
-            ax.set_title(f"{class_name} {peak_type}", fontsize=12)
+            ax.set_title(f"Klasa {class_name[-1]} {peak_type}", fontsize=12)
             ax.set_xlabel("Numer próbki")
             ax.set_ylabel("Amplituda")
+            ax_hist.set_ylabel("Liczba pików")
             ax.grid(alpha=0.3)
 
             h1, l1 = ax.get_legend_handles_labels()
@@ -533,8 +545,8 @@ def plot_all_signals_with_peaks_by_peak_type(
             ax.legend(h1 + h2, l1 + l2, loc="upper right")
 
     fig.suptitle(
-        f"{titles_dict.get(method_name, method_name)} — zakres: {ranges_name if ranges_name is not None else 'none'}",
-        fontsize=18
+        f"{titles_dict.get(method_name, method_name)} — zakres: {ranges_dict.get(ranges_name, ranges_name if ranges_name is not None else 'none')}",
+        fontsize=20
     )
     plt.tight_layout(rect=[0,0,1,0.97])
     plt.show()

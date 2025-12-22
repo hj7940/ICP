@@ -690,7 +690,7 @@ Class4:
 # --- wariant a ---
 df_variant_a = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),
+    ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),  
     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
 
