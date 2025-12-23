@@ -16,6 +16,7 @@ from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals,
                        plot_all_signals_with_peaks_by_peak_type)
 
 import time as tme
+import matplotlib.pyplot as plt
 
 # sprawdzone i dzialajace: import zakresow z ranges, load_dataset i smooth_dataset
 # generowanie zakresow zgodnych w strukturze z crossingami
@@ -434,31 +435,6 @@ def get_peak_params(class_id, peak_name, tuned_params):
     }
 
 def compare_concave_methods(dataset, tuned_params):
-    # results_default = peak_detection(dataset, "concave", 
-    #                                  df_ranges_time.loc["it1", "full"], 
-    #                                  df_ranges_amps.loc["it1", "full"], 
-    #                                  ranges_name="full")
-    
-    # results_tuned = []
-    # for item in dataset:
-    #     class_id = item["class"]
-    #     file = item["file"]
-    #     sig = item["signal"]
-    #     y = sig.iloc[:, 1].values
-
-    #     detected = {}
-    #     for p in ["P1", "P2", "P3"]:
-    #         params = get_peak_params(class_id, p, tuned_params)
-    #         detected[p] = concave(y, **params).tolist()
-
-    #     results_tuned.append({
-    #         "method": "concave_tuned",
-    #         "class": class_id,
-    #         "file": file,
-    #         "signal": sig,
-    #         "peaks_ref": item.get("peaks_ref", {}),
-    #         "peaks_detected": detected
-    #     })
     results_default = peak_detection(
     dataset=it1,
     method_name="concave",
@@ -483,20 +459,15 @@ def compare_concave_methods(dataset, tuned_params):
 # %%  lista metod 
 all_methods = {
     "concave": lambda sig: concave(sig, d2x_threshold=0, min_len=3, height=0, prominence=0),
-    "concave_d2x=-0-002": lambda sig:  concave(sig, d2x_threshold=-0.002, min_len=3, height=0, prominence=0),
+    # "concave_d2x=-0-002": lambda sig:  concave(sig, d2x_threshold=-0.002, min_len=3, height=0, prominence=0),
     "concave_d2x=0-002": lambda sig:  concave(sig, d2x_threshold=0.002, min_len=3, height=0, prominence=0),
     
-    # "modified_scholkmann_1_99": lambda sig: modified_scholkmann_old(sig, 1, 99),
-    # "modified_scholkmann_1_95": lambda sig: modified_scholkmann_old(sig, 1, 95),
-    # "modified_scholkmann_1-2_95": lambda sig: modified_scholkmann_old(sig, 2, 95),
-    # "modified_scholkmann_1-2_99": lambda sig: modified_scholkmann_old(sig, 2, 99),
-  
     "modified_scholkmann0-5": lambda sig: modified_scholkmann(sig, 0.5),
-    "modified_scholkmann1": lambda sig: modified_scholkmann(sig, 1),
+    # "modified_scholkmann1": lambda sig: modified_scholkmann(sig, 1),
     
     "curvature": lambda sig: curvature(sig, 0, 3),
     "line_distance_3": lambda sig: line_distance(sig, 0,"vertical", 3),
-    "line_perpendicular_3": lambda sig: line_distance(sig, 0, "perpendicular", 3),
+    # "line_perpendicular_3": lambda sig: line_distance(sig, 0, "perpendicular", 3),
     "hilbert": lambda sig: hilbert_envelope(sig, 0),
     "wavelet": lambda sig: wavelet(sig, (1,10))
 }
@@ -531,7 +502,7 @@ for dataset, dataset_name in datasets:
 
     for range_type, range_name in (
         (ranges_full, "full"),
-        (ranges_pm3, "pm3"),
+        # (ranges_pm3, "pm3"),
         (ranges_whiskers, "whiskers"),
     ):
         (time, amp) = generate_ranges_for_all_files(dataset, range_type)
@@ -555,7 +526,7 @@ for dataset, dataset_name in datasets:
 
     for range_type, range_name in (
         (ranges_full, "full"),
-        (ranges_pm3, "pm3"),
+        # (ranges_pm3, "pm3"),
         (ranges_whiskers, "whiskers"),
     ):
         (time, amp) = generate_ranges_for_all_files(dataset, range_type)
@@ -568,132 +539,124 @@ tuned_params = pd.read_csv("tuned_params.csv")
 # %% liczenie pikow
 if __name__ == "__main__":
     
-    wyniki_base = "wyniki_NAJnajnowsze_d"
+    wyniki_base = "wyniki_final"
     os.makedirs(wyniki_base, exist_ok=True)
 
-    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
-    start = tme.time()
-    
-    det = peak_detection(
-        dataset=it1,
-        method_name="modified_scholkmann0-5",
-        time_ranges=df_ranges_time.loc["it1", "full"],
-        amp_ranges=df_ranges_amps.loc["it1", "full"],
-        ranges_name="full",
-        tuned_params=None
-        )
-    time_05 = tme.time() - start 
+    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+  
+    # start = tme.time()
+    # det = peak_detection(
+    #     dataset=it1,
+    #     method_name="line_distance_3",
+    #     time_ranges=df_ranges_time.loc["it1", "full"],
+    #     amp_ranges=df_ranges_amps.loc["it1", "full"],
+    #     ranges_name="full",
+    #     tuned_params=None
+    #     )
+    # time_05 = tme.time() - start 
     # plot_all_signals_with_peaks_by_peak_type(
     #     detection_results=det,
-    #     method_name="modified_scholkmann0-5",
+    #     method_name="line_distance_3",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_line/line_1.pdf")
+    # all_metrics_C = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_scholkmann05 = compute_peak_metrics(
+    #             det, peak_name, class_name
+    #         )
+    #         df_scholkmann05["Method"] = "line_distance_3"
+    #         all_metrics_C.append(df_scholkmann05)
 
-    all_metrics_C = []
-    for peak_name in ["P1", "P2", "P3"]:
-        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
-            df_scholkmann05 = compute_peak_metrics(
-                det, peak_name, class_name
-            )
-            df_scholkmann05["Method"] = "modified_scholkmann0-5"
-            all_metrics_C.append(df_scholkmann05)
+    # df_all_metrics_C = pd.concat(all_metrics_C, ignore_index=True)
+    # df_avg_metrics_C = (
+    #     df_all_metrics_C
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
 
-    df_all_metrics_C = pd.concat(all_metrics_C, ignore_index=True)
-    df_avg_metrics_C = (
-        df_all_metrics_C
-        .groupby(["Class", "Peak", "Method"])
-    .agg(
-        # błędy — średnie
-        Mean_X_Error=("Mean_X_Error", "mean"),
-        Mean_Y_Error=("Mean_Y_Error", "mean"),
-        Mean_XY_Error=("Mean_XY_Error", "mean"),
-        Min_XY_Error=("Min_XY_Error", "mean"),
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
 
-        # confusion-like — sumy
-        TP=("TP", "sum"),
-        FP=("FP", "sum"),
-        FN=("FN", "sum"),
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
 
-        # dodatkowe
-        Peak_Count=("Peak_Count", "mean"),
-        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
-    )
-    .reset_index()
-    )
-    start = tme.time()
-    det = peak_detection(
-        dataset=it1,
-        method_name="modified_scholkmann1",
-        time_ranges=df_ranges_time.loc["it1", "full"],
-        amp_ranges=df_ranges_amps.loc["it1", "full"],
-        ranges_name="full",
-        tuned_params=None
-        )
-    time_1 = tme.time() - start   
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
+    # start2 = tme.time()
+    # det = peak_detection(
+    #     dataset=it1,
+    #     method_name="line_perpendicular_3",
+    #     time_ranges=df_ranges_time.loc["it1", "full"],
+    #     amp_ranges=df_ranges_amps.loc["it1", "full"],
+    #     ranges_name="full",
+    #     tuned_params=None
+    #     )
+    # time_1 = tme.time() - start2   
     # plot_all_signals_with_peaks_by_peak_type(
     #     detection_results=det,
-    #     method_name="modified_scholkmann1",
+    #     method_name="line_perpendicular_3",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_line/line_2.pdf")
 
-    all_metrics_C2 = []
-    for peak_name in ["P1", "P2", "P3"]:
-        for class_name in ["Class1", "Class2", "Class3", "Class4"]:
-            df_scholkmann05 = compute_peak_metrics(
-                det, peak_name, class_name
-            )
-            df_scholkmann05["Method"] = "modified_scholkmann1"
-            all_metrics_C2.append(df_scholkmann05)
+    # all_metrics_C2 = []
+    # for peak_name in ["P1", "P2", "P3"]:
+    #     for class_name in ["Class1", "Class2", "Class3", "Class4"]:
+    #         df_scholkmann05 = compute_peak_metrics(
+    #             det, peak_name, class_name
+    #         )
+    #         df_scholkmann05["Method"] = "line_perpendicular_3"
+    #         all_metrics_C2.append(df_scholkmann05)
 
-    df_all_metrics_C2 = pd.concat(all_metrics_C2, ignore_index=True)
-    df_avg_metrics_C2 = (
-        df_all_metrics_C2
-        .groupby(["Class", "Peak", "Method"])
-    .agg(
-        # błędy — średnie
-        Mean_X_Error=("Mean_X_Error", "mean"),
-        Mean_Y_Error=("Mean_Y_Error", "mean"),
-        Mean_XY_Error=("Mean_XY_Error", "mean"),
-        Min_XY_Error=("Min_XY_Error", "mean"),
+    # df_all_metrics_C2 = pd.concat(all_metrics_C2, ignore_index=True)
+    # df_avg_metrics_C2 = (
+    #     df_all_metrics_C2
+    #     .groupby(["Class", "Peak", "Method"])
+    # .agg(
 
-        # confusion-like — sumy
-        TP=("TP", "sum"),
-        FP=("FP", "sum"),
-        FN=("FN", "sum"),
+    #     Mean_X_Error=("Mean_X_Error", "mean"),
+    #     Mean_Y_Error=("Mean_Y_Error", "mean"),
+    #     Mean_XY_Error=("Mean_XY_Error", "mean"),
+    #     Min_XY_Error=("Min_XY_Error", "mean"),
 
-        # dodatkowe
-        Peak_Count=("Peak_Count", "mean"),
-        Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
-    )
-    .reset_index()
-    )
+    #     TP=("TP", "sum"),
+    #     FP=("FP", "sum"),
+    #     FN=("FN", "sum"),
+
+    #     Peak_Count=("Peak_Count", "mean"),
+    #     Percent_Signals_with_Peak=("%_Signals_with_Peak", "first")
+    # )
+    # .reset_index()
+    # )
     
-    df_all_methods = pd.concat(
-        [
-            df_avg_metrics_C,
-            df_avg_metrics_C2,
-        ],
-        ignore_index=True
-    )
-    
-    method_order = [
-        "modified_scholkmann1",
-        "modified_scholkmann0-5",
-    ]
-    
-    df_all_methods["Method"] = pd.Categorical(
-        df_all_methods["Method"],
-        categories=method_order,
-        ordered=True
-    )
-    
-    df_all_methods = (
-        df_all_methods
-        .sort_values(["Class", "Peak", "Method"])
-        .reset_index(drop=True)
-    )
+    # df_all_methods = pd.concat(
+    #     [
+    #         df_avg_metrics_C,
+    #         df_avg_metrics_C2,
+    #     ],
+    #     ignore_index=True
+    # )
 
-    df_all_methods.to_csv("metrics_tuning_of_scholkmann.csv", index=False)
+    
+    # df_all_methods["Method"] = pd.Categorical(
+    #     df_all_methods["Method"],
+    # )
+    
+    # df_all_methods = (
+    #     df_all_methods
+    #     .sort_values(["Class", "Peak", "Method"])
+    #     .reset_index(drop=True)
+    # )
+
+    # df_all_methods.to_csv("metrics_tuning_of_line_distance.csv", index=False)
+    
 # %% ----- CONCAVE - POROWNANIE WARIANTOW METODY ----------------   
     # det = peak_detection(
     #     dataset=it1,
@@ -709,6 +672,7 @@ if __name__ == "__main__":
     #     method_name="concave",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_concave/concave_1.pdf")
 
     # all_metrics_C = []
     # for peak_name in ["P1", "P2", "P3"]:
@@ -757,6 +721,7 @@ if __name__ == "__main__":
     #     method_name="concave_d2x=-0-002",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_concave/concave_2.pdf")
 
     # all_metrics_C2 = []
     # for peak_name in ["P1", "P2", "P3"]:
@@ -805,6 +770,7 @@ if __name__ == "__main__":
     #     method_name="concave_d2x=0-002",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_concave/concave_3.pdf")
     
     # all_metrics_C3 = []
     # for peak_name in ["P1", "P2", "P3"]:
@@ -852,6 +818,7 @@ if __name__ == "__main__":
     #     method_name="concave_tuned",
     #     ranges_name="full"
     # )
+    # plt.savefig("rysunki/tuningowanie_concave/concave_4.pdf")
     
     # all_metrics_C4 = []
     # for peak_name in ["P1", "P2", "P3"]:
@@ -976,56 +943,56 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    # it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    # dfs_avg = []
-    # for config_name, method_dict in it1_results.items():
-    #     for method_name, (df_all, df_avg) in method_dict.items():
-    #         df = df_avg.copy()
-    #         df["Config"] = f"{config_name}_{method_name}"
-    #         dfs_avg.append(df)
-    # df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    dfs_avg = []
+    for config_name, method_dict in it1_results.items():
+        for method_name, (df_all, df_avg) in method_dict.items():
+            df = df_avg.copy()
+            df["Config"] = f"{config_name}_{method_name}"
+            dfs_avg.append(df)
+    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
     
     
-    # peaks = ["P1","P2","P3"]
-    # classes = ["Class1","Class2","Class3","Class4"]
+    peaks = ["P1","P2","P3"]
+    classes = ["Class1","Class2","Class3","Class4"]
     
-    # top_xy_dfs = {}
-    # top_minxy_dfs = {}
+    top_xy_dfs = {}
+    top_minxy_dfs = {}
     
-    # min_fraction = 0.90
-    # # max_XY_Error = 30
+    min_fraction = 0.90
+    # max_XY_Error = 30
     
-    # # Tworzenie osobnych DF-ów
-    # for class_id in classes:
-    #     for pk in peaks:
-    #         # --- filtr po udziale sygnałów ---
-    #         df_filtered = df_it1_avg[
-    #             (df_it1_avg["Peak"] == pk) &
-    #             (df_it1_avg["Class"] == class_id) &
-    #             (df_it1_avg["Num_Signals_with_Peak"] / df_it1_avg["Num_Signals_in_Class"] >= min_fraction)
-    #             #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
-    #             #(df_it1_avg["Peak_Count"] <= 10)
-    #         ].copy()
+    # Tworzenie osobnych DF-ów
+    for class_id in classes:
+        for pk in peaks:
+            # --- filtr po udziale sygnałów ---
+            df_filtered = df_it1_avg[
+                (df_it1_avg["Peak"] == pk) &
+                (df_it1_avg["Class"] == class_id) &
+                (df_it1_avg["%_Signals_with_Peak"] >= min_fraction)
+                #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+                #(df_it1_avg["Peak_Count"] <= 10)
+            ].copy()
             
-    #         error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+            error_cols = ["Mean_XY_Error", "Min_XY_Error"]
             
-    #         df_filtered[error_cols] = df_filtered[error_cols].round(10)
-    #         #print(df_filtered.columns.tolist())
-    #         df_merged = merge_identical_configs_before_top(df_filtered)
+            df_filtered[error_cols] = df_filtered[error_cols].round(10)
+            #print(df_filtered.columns.tolist())
+            df_merged = merge_identical_configs_before_top(df_filtered)
             
-    #         # --- Mean_XY_Error ---
-    #         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
-    #         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+            # --- Mean_XY_Error ---
+            df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+            top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
     
-    #         # --- Min_XY_Error ---
-    #         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
-    #         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+            # --- Min_XY_Error ---
+            df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+            top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
     
-    # cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
-    # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    # df_top_xy_all[cols_to_keep].to_csv("top_xy_it1_90_NAJnajnowsze_d_2.csv", sep=' ', index=False)
+    df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    df_top_xy_all[cols_to_keep].to_csv("wyniki_final_d_2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)

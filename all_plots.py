@@ -456,7 +456,7 @@ def plot_all_signals_with_peaks_by_peak_type(
     n_peaks = len(peak_types)
 
     fig, axes = plt.subplots(n_classes, n_peaks, figsize=(20, 16), squeeze=False, 
-                             gridspec_kw={"wspace":0.4, "hspace":0.4})
+                             gridspec_kw={"wspace":0.4, "hspace":0.35})
 
     titles_dict = {
         "concave": "Maksima w odcinkach wklęsłych",
@@ -554,10 +554,11 @@ def plot_all_signals_with_peaks_by_peak_type(
 
     fig.suptitle(
         f"{titles_dict.get(method_name, method_name)} — zakres: {ranges_dict.get(ranges_name, ranges_name if ranges_name is not None else 'none')}",
-        fontsize=20
+        fontsize=20,
+        y=0.94
     )
     plt.tight_layout(rect=[0,0,1,0.97])
-    plt.show()
+
 
 
 # --------------------------------------------------
