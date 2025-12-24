@@ -42,7 +42,7 @@ from all_plots import (plot_files_in_class, plot_upset_classic_postproc,
 
 # do sprawdzenia
 
-def peak_detection_single(dataset, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
+def peak_detection_single(dataset, dataset_raw, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
     """
     Wykrywa pojedynczy pik w zadanej klasie.
     
@@ -156,6 +156,7 @@ def run_variant(
 
         res = peak_detection_single(
             dataset=dataset,
+            dataset_raw=
             method_name=row.method,
             class_id=row["class"],
             peak=row.peak,

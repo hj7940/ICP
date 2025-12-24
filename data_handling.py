@@ -1,18 +1,20 @@
-import os
-import glob
-import pandas as pd
-from scipy.signal import butter, filtfilt
-
 # -*- coding: utf-8 -*-
+
 """
 Created on Mon Dec 15 11:12:27 2025
 
 @author: Hanna Jaworska
 
-load_dataset: Wcztytanie danych (it1, it2) do programu
+load_dataset: Wczytanie danych (it1, it2) do programu
 smooth_butter: filtr dolnoprzepustowy buttterwortha
 smooth_dataset: wygladzenie wszystkich sygnalow w zbiorze danych
 """
+
+import os
+import glob
+import pandas as pd
+from scipy.signal import butter, filtfilt
+
 
 def load_dataset(base_path, it_type):
     """
@@ -35,6 +37,8 @@ def load_dataset(base_path, it_type):
         - file : str (np. "Class1_example_0001")
         
         - signal: DataFrame (kolumny: Sample_no, ICP)
+        
+        - signal_raw: -||-
         
         - peaks_ref : dict (np. {'P1': 31, 'P2': 53, 'P3': 90})
     
@@ -75,6 +79,7 @@ def load_dataset(base_path, it_type):
                 "class": class_name,
                 "file": file_name,
                 "signal": signal_df,
+                "signal_raw": signal_df.copy(),
                 "peaks_ref": peaks_ref
             })
     
@@ -165,6 +170,7 @@ def smooth_dataset(dataset, inplace=False, classes=None, cutoff=4, **kwargs):
                 "class": item["class"],
                 "file": item["file"],
                 "signal": item["signal"].copy(),  # kopia DataFrame
+                "signal_raw": item["signal_raw"].copy(), 
                 "peaks_ref": item["peaks_ref"].copy() if item.get("peaks_ref") else None
             })
 
