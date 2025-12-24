@@ -12,10 +12,12 @@ generowanie boxplotow
 from scipy.signal import peak_prominences, peak_widths
 import pandas as pd
 import numpy as np
-from main import it1
+from main import it1, it2
 from scipy.stats import shapiro, anderson, kstest
-from all_plots import plot_peak_features_boxplots
-
+from all_plots import (plot_peak_features_boxplots_it1_it2_with_significance,
+                       plot_signal_with_reference_peaks, 
+                       plot_peak_features_boxplots_it1_it2)
+from scipy.stats import mannwhitneyu
 
 def compute_reference_peak_features(dataset, peaks=("P1","P2","P3")):
     """
@@ -194,8 +196,42 @@ def aggregate(df, value_col):
     })
 
 
-df_all = compute_reference_peak_features(dataset=it1)
+def mann_whitney_peak_comparison(df_it1, df_it2, features=("Index","Height","Prominence"), 
+                                 classes=("Class1","Class2","Class3","Class4"),
+                                 peaks=("P1","P2","P3"), output_csv="mann_whitney_results.csv"):
+    """
+    Test U Manna-Whitneya między df_it1 i df_it2 dla cech pików referencyjnych.
+    
+    Zapisuje wyniki do pliku CSV.
+    """
+    results = []
 
+    for feat in features:
+        for class_id in classes:
+            for pk in peaks:
+                v1 = df_it1[(df_it1["Class"]==class_id) & (df_it1["Peak"]==pk)][feat].dropna()
+                v2 = df_it2[(df_it2["Class"]==class_id) & (df_it2["Peak"]==pk)][feat].dropna()
+                
+                if len(v1)==0 or len(v2)==0:
+                    continue
+
+                stat, p = mannwhitneyu(v1, v2, alternative='two-sided')
+                results.append({
+                    "Feature": feat,
+                    "Class": class_id,
+                    "Peak": pk,
+                    "U-statistic": stat,
+                    "p-value": p,
+                    "Significant": p < 0.05
+                })
+
+    df_results = pd.DataFrame(results)
+    df_results.to_csv(output_csv, index=False)
+    print(f"Wyniki zapisane do {output_csv}")
+    return df_results
+
+df_all = compute_reference_peak_features(dataset=it1)
+df_all_it2 = compute_reference_peak_features(it2)
 
 features = ["Index", "Height", "Prominence", "Width_50", "Width_25", "Width_75"]
 
@@ -247,4 +283,12 @@ df_agg = (
 # tuned_params.to_csv("tuned_params.csv", index=False)
 
 
-plot_peak_features_boxplots(df_all, features=["Index", "Height","Prominence"])
+# plot_peak_features_boxplots(df_all, features=["Index", "Height","Prominence"])
+
+# plot_signal_with_reference_peaks(it1, "Class4_example_0074")
+# plot_signal_with_reference_peaks(it1, "Class4_example_0088")
+# plot_reference_peak_boxplots(df_all, df_all_it2)
+# plot_peak_features_boxplots_it1_it2(df_all, df_all_it2)
+df_stats = mann_whitney_peak_comparison(df_all, df_all_it2)
+
+plot_peak_features_boxplots_it1_it2_with_significance(df_all, df_all_it2, df_stats)
