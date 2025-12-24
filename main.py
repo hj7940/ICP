@@ -13,7 +13,7 @@ from methods import (concave, curvature, modified_scholkmann,
 from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
                     generate_ranges_for_all_files, compute_ranges_avg)
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
-                       plot_all_signals_with_peaks_by_peak_type)
+                       plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -456,6 +456,69 @@ def compare_concave_methods(dataset, tuned_params):
     return results_default, results_tuned
 
 
+def analyze_avg_crossings(dataset, dataset_name):
+    """
+    Analiza avg-crossings:
+    - % sygnałów z dokładnie 6 crossingami
+    - % sygnałów z 6 crossingami + idealnym ułożeniem P1–P3
+    """
+    crossings = compute_ranges_avg(dataset)
+    results = []
+
+    for class_id in ["Class1", "Class2", "Class3", "Class4"]:
+        class_items = [it for it in dataset if it["class"] == class_id]
+        n_signals = len(class_items)
+        if n_signals == 0:
+            continue
+
+        n_exact_6 = 0
+        n_exact_6_and_ideal = 0
+
+        for item in class_items:
+            file = item["file"]
+            peaks_ref = item.get("peaks_ref", {})
+
+            peaks_dict = crossings.get(class_id, {}).get(file, {})
+            all_crossings = (
+                list(peaks_dict.get("P1", ())) +
+                list(peaks_dict.get("P2", ())) +
+                list(peaks_dict.get("P3", ()))
+            )
+
+            if len(all_crossings) != 6:
+                continue
+
+            n_exact_6 += 1
+            c1, c2, c3, c4, c5, c6 = all_crossings
+
+            p1 = peaks_ref.get("P1")
+            p2 = peaks_ref.get("P2")
+            p3 = peaks_ref.get("P3")
+
+            if p1 is None or p2 is None or p3 is None:
+                continue
+
+            ideal = (c1 < p1 < c2 and c3 < p2 < c4 and c5 < p3 < c6)
+            if ideal:
+                n_exact_6_and_ideal += 1
+
+        results.append({
+            "Class": class_id,
+            "Dataset": dataset_name,
+            "Num_Signals": n_signals,
+            "Signals_with_6_crossings": n_exact_6,
+            "%_Signals_with_6_crossings": 100 * n_exact_6 / n_signals,
+            "Signals_with_6_crossings_and_ideal_P1P3": n_exact_6_and_ideal,
+            "%_Signals_with_6_crossings_and_ideal_P1P3": 100 * n_exact_6_and_ideal / n_signals
+        })
+
+    df = pd.DataFrame(results)
+    # sortowanie: najpierw Class, potem Dataset
+    df["Class_order"] = df["Class"].str.extract(r'(\d+)').astype(int)
+    df["Dataset_order"] = df["Dataset"].map({"it1":0, "it1_smooth_3Hz":1, "it1_smooth_4Hz":2})
+    df = df.sort_values(["Class_order", "Dataset_order"]).drop(["Class_order","Dataset_order"], axis=1)
+    return df
+
 # %%  lista metod 
 all_methods = {
     "concave": lambda sig: concave(sig, d2x_threshold=0, min_len=3, height=0, prominence=0),
@@ -542,8 +605,43 @@ if __name__ == "__main__":
     wyniki_base = "wyniki_final"
     os.makedirs(wyniki_base, exist_ok=True)
 
-    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
-  
+    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    
+    # df_it1 = analyze_avg_crossings(it1, "it1")
+    # df_it1_3Hz = analyze_avg_crossings(it1_smooth_3Hz, "it1_smooth_3Hz")
+    # df_it1_4Hz = analyze_avg_crossings(it1_smooth_4Hz, "it1_smooth_4Hz")
+    
+    # df_avg_comparison = pd.concat([df_it1, df_it1_3Hz, df_it1_4Hz], ignore_index=True)
+    
+
+    # class_order = {f"Class{i}": i for i in range(1, 10)}
+    # dataset_order = {
+    #     "it1": 0, 
+    #     "it1_smooth_3Hz": 1, 
+    #     "it1_smooth_4Hz": 2
+    # }
+    
+    # # 3. Dodaj kolumny pomocnicze do sortowania
+    # df_avg_comparison["_c_sort"] = df_avg_comparison["Class"].map(class_order)
+    # df_avg_comparison["_d_sort"] = df_avg_comparison["Dataset"].map(dataset_order)
+    
+    # # 4. Sortuj i usuń kolumny pomocnicze
+    # df_avg_comparison = df_avg_comparison.sort_values(["_c_sort", "_d_sort"]).drop(columns=["_c_sort", "_d_sort"])
+    
+    # # Opcjonalnie: Ustawienie MultiIndex dla lepszej wizualizacji "schodkowej" w Pythonie
+    # # Dzięki temu nazwa klasy wyświetli się tylko raz dla całej grupy
+    # df_styled = df_avg_comparison.set_index(["Class", "Dataset"])
+    
+    # # Zapis do pliku
+    # df_avg_comparison.to_csv("avg_crossings_comparison_it1_vs_smooth.csv", index=False)
+    
+    
+    dataset_list = [it1, it1_smooth_4Hz,  it1_smooth_3Hz,]
+    file_names = ["Class1_example_0028", "Class1_example_0248"]
+    dataset_labels = ["Sygnał nieprzefiltrowany", r"Po filtracji, $f_g$=4 Hz",  r"Po filtracji, $f_g$=3 Hz"]
+    
+    plot_filt_comparison(dataset_list, file_names, dataset_labels)
+
     # start = tme.time()
     # det = peak_detection(
     #     dataset=it1,
@@ -943,56 +1041,56 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    # it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    dfs_avg = []
-    for config_name, method_dict in it1_results.items():
-        for method_name, (df_all, df_avg) in method_dict.items():
-            df = df_avg.copy()
-            df["Config"] = f"{config_name}_{method_name}"
-            dfs_avg.append(df)
-    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    # dfs_avg = []
+    # for config_name, method_dict in it1_results.items():
+    #     for method_name, (df_all, df_avg) in method_dict.items():
+    #         df = df_avg.copy()
+    #         df["Config"] = f"{config_name}_{method_name}"
+    #         dfs_avg.append(df)
+    # df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
     
     
-    peaks = ["P1","P2","P3"]
-    classes = ["Class1","Class2","Class3","Class4"]
+    # peaks = ["P1","P2","P3"]
+    # classes = ["Class1","Class2","Class3","Class4"]
     
-    top_xy_dfs = {}
-    top_minxy_dfs = {}
+    # top_xy_dfs = {}
+    # top_minxy_dfs = {}
     
-    min_fraction = 0.90
-    # max_XY_Error = 30
+    # min_fraction = 0.90
+    # # max_XY_Error = 30
     
-    # Tworzenie osobnych DF-ów
-    for class_id in classes:
-        for pk in peaks:
-            # --- filtr po udziale sygnałów ---
-            df_filtered = df_it1_avg[
-                (df_it1_avg["Peak"] == pk) &
-                (df_it1_avg["Class"] == class_id) &
-                (df_it1_avg["%_Signals_with_Peak"] >= min_fraction)
-                #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
-                #(df_it1_avg["Peak_Count"] <= 10)
-            ].copy()
+    # # Tworzenie osobnych DF-ów
+    # for class_id in classes:
+    #     for pk in peaks:
+    #         # --- filtr po udziale sygnałów ---
+    #         df_filtered = df_it1_avg[
+    #             (df_it1_avg["Peak"] == pk) &
+    #             (df_it1_avg["Class"] == class_id) &
+    #             (df_it1_avg["%_Signals_with_Peak"] >= min_fraction)
+    #             #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+    #             #(df_it1_avg["Peak_Count"] <= 10)
+    #         ].copy()
             
-            error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+    #         error_cols = ["Mean_XY_Error", "Min_XY_Error"]
             
-            df_filtered[error_cols] = df_filtered[error_cols].round(10)
-            #print(df_filtered.columns.tolist())
-            df_merged = merge_identical_configs_before_top(df_filtered)
+    #         df_filtered[error_cols] = df_filtered[error_cols].round(10)
+    #         #print(df_filtered.columns.tolist())
+    #         df_merged = merge_identical_configs_before_top(df_filtered)
             
-            # --- Mean_XY_Error ---
-            df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
-            top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+    #         # --- Mean_XY_Error ---
+    #         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+    #         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
     
-            # --- Min_XY_Error ---
-            df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
-            top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+    #         # --- Min_XY_Error ---
+    #         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+    #         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
     
-    cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    # cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
-    df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    df_top_xy_all[cols_to_keep].to_csv("wyniki_final_d_2.csv", sep=' ', index=False)
+    # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    # df_top_xy_all[cols_to_keep].to_csv("wyniki_final_d_2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)

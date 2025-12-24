@@ -35,6 +35,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Patch
+from matplotlib.lines import Line2D
 from itertools import groupby
 
 
@@ -849,11 +850,11 @@ def plot_peak_features_boxplots_it1_it2(
         )
 
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(f"rysunki/{feat}", format="pdf")
+        plt.savefig(f"rysunki/{feat}.pdf", format="pdf", bbox_inches='tight')
         plt.show()
         
-def add_significance_stars(ax, pos1, pos2, v1, v2, df_stats, feat, cls, pk, h_offset=0.05):
-    """Dodaje gwiazdki nad dwoma boxami jeśli test jest istotny."""
+def add_significance_stars(ax, pos1, pos2, v1, v2, df_stats, feat, cls, pk, leg_len=0.04, star_offset=0.01):
+    """Dodaje prostokątny bracket o stałej wysokości nóżek nad danymi."""
     stat_row = df_stats[
         (df_stats["Feature"] == feat) & 
         (df_stats["Class"] == cls) & 
@@ -870,140 +871,126 @@ def add_significance_stars(ax, pos1, pos2, v1, v2, df_stats, feat, cls, pk, h_of
     elif p < 0.05:
         stars = "*"
     else:
-        stars = None
+        stars = "ns"
 
-    if stars:
-        y_max = max(v1.max(), v2.max())
-        y = y_max + h_offset * y_max
-        ax.plot([pos1, pos2], [y, y], color='black', linewidth=1.2)
-        ax.text((pos1+pos2)/2, y + h_offset*y_max/2, stars,
-                ha='center', va='bottom', fontsize=12)
+    # Max z uwzględnieniem outlierów
+    y_max_data = max(v1.max(), v2.max())
+    
+    # Podniesienie bracketu nad dane
+    y_bracket_top = y_max_data + (leg_len * 3) 
+    y_bracket_bottom = y_bracket_top - leg_len
 
+    # Rysowanie bracketu "square"
+    ax.plot([pos1, pos1, pos2, pos2], 
+            [y_bracket_bottom, y_bracket_top, y_bracket_top, y_bracket_bottom],
+            color='black', linewidth=1.1)
+
+    # Gwiazdki (niepogrubione)
+    ax.text((pos1 + pos2) / 2, y_bracket_top, stars,
+            ha='center', va='bottom', fontsize=11)
 
 def plot_peak_features_boxplots_it1_it2_with_significance(
-    df_it1,
-    df_it2,
-    df_stats,
+    df_it1, df_it2, df_stats,
     features=("Index", "Height", "Prominence"),
     classes=("Class1", "Class2", "Class3", "Class4"),
-    colors=("lightseagreen", "lightblue"),
-    fontsize_labels=14,
-    fontsize_ticks=10
+    colors=("lightseagreen", "lightblue")
 ):
-    label_map = {
-        "Index": "Położenie piku [nr próbki]",
-        "Height": "Amplituda",
-        "Prominence": "Wyrazistość"
-    }
-
-    # umiarkowane odstępy na osi x
+    label_map = {"Index": "Położenie piku", "Height": "Amplituda", "Prominence": "Wyrazistość"}
     base_pos = {"P1": 1.0, "P2": 2.2, "P3": 3.4}
-    offset = 0.18
-    width = 0.28
+    offset, width = 0.18, 0.28
 
     for feat in features:
-        fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+        # Zwiększona szerokość figury, aby pomieścić legendę na prawo od osi
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
         axes = axes.flatten()
 
         for ax, class_id in zip(axes, classes):
-
             df1 = df_it1[df_it1["Class"] == class_id]
             df2 = df_it2[df_it2["Class"] == class_id]
-
             peaks = ["P1", "P2", "P3"] if class_id != "Class4" else ["P2"]
 
-            data1, data2 = [], []
-            pos1, pos2 = [], []
+            data1, data2, pos1, pos2 = [], [], [], []
+            all_vals = []
 
             for p in peaks:
                 v1 = df1[df1["Peak"] == p][feat].dropna()
-                v2 = df2[df2["Peak"] == p][feat].dropna()
-
-                if len(v1) == 0 or len(v2) == 0:
-                    continue
+                v2 = df2[df2[ "Peak"] == p][feat].dropna()
+                if len(v1) == 0 or len(v2) == 0: continue
 
                 data1.append(v1)
                 data2.append(v2)
                 pos1.append(base_pos[p] - offset)
                 pos2.append(base_pos[p] + offset)
+                all_vals.extend(v1.tolist() + v2.tolist())
 
             if not data1:
                 ax.set_visible(False)
                 continue
 
-            b1 = ax.boxplot(
-                data1,
-                positions=pos1,
-                widths=width,
-                patch_artist=True,
-                medianprops=dict(color="black", linewidth=2),
-                flierprops=dict(
-                    marker='o',
-                    markersize=4,
-                    markerfacecolor='none',
-                    markeredgewidth=1,
-                    markeredgecolor=colors[0]
-                )
-            )
+            # Boxploty z czarną medianą
+            box_props = dict(patch_artist=True, widths=width, 
+                             medianprops=dict(color="black", linewidth=2.0))
 
-            b2 = ax.boxplot(
-                data2,
-                positions=pos2,
-                widths=width,
-                patch_artist=True,
-                medianprops=dict(color="black", linewidth=2),
-                flierprops=dict(
-                    marker='o',
-                    markersize=4,
-                    markerfacecolor='none',
-                    markeredgewidth=1,
-                    markeredgecolor=colors[1]
-                )
-            )
+            bp1 = ax.boxplot(data1, positions=pos1, **box_props,
+                             flierprops=dict(marker='o', markersize=4, markeredgecolor=colors[0]))
+            bp2 = ax.boxplot(data2, positions=pos2, **box_props,
+                             flierprops=dict(marker='o', markersize=4, markeredgecolor=colors[1]))
 
-            for box in b1["boxes"]:
-                box.set_facecolor(colors[0])
-                box.set_edgecolor("black")
+            for box in bp1["boxes"]: box.set(facecolor=colors[0], edgecolor="black")
+            for box in bp2["boxes"]: box.set(facecolor=colors[1], edgecolor="black")
 
-            for box in b2["boxes"]:
-                box.set_facecolor(colors[1])
-                box.set_edgecolor("black")
-
-            # dodawanie gwiazdek
-            for p, p1, p2, v1, v2 in zip(peaks, pos1, pos2, data1, data2):
-                add_significance_stars(ax, p1, p2, v1, v2, df_stats, feat, class_id, p)
+            # Ustawienie limitów Y (+5% extra na górze względem poprzedniej wersji)
+            if all_vals:
+                y_min, y_max = min(all_vals), max(all_vals)
+                y_range = y_max - y_min if y_max != y_min else 1
+                # Zwiększony margines górny do 0.4 (40% zakresu) dla swobody bracketów
+                ax.set_ylim(y_min - 0.05 * y_range, y_max + 0.18 * y_range)
+                
+                dynamic_leg = 0.02 * y_range 
+                for p, p1, p2, v1_b, v2_b in zip(peaks, pos1, pos2, data1, data2):
+                    add_significance_stars(ax, p1, p2, v1_b, v2_b, df_stats, feat, class_id, p, leg_len=dynamic_leg)
 
             ax.set_xticks([base_pos[p] for p in peaks])
-            ax.set_xticklabels(peaks, fontsize=fontsize_labels)
+            ax.set_xticklabels(peaks, fontsize=14)
+            ax.set_title(f"Klasa {class_id[-1]}", fontsize=14) # Niepogrubione
+            ax.set_ylabel(label_map[feat], fontsize=12)
+            ax.grid(axis='y', alpha=0.3)
 
-            ax.set_title(f"Klasa {class_id[-1]}", fontsize=fontsize_labels)
-            ax.set_ylabel(label_map[feat], fontsize=fontsize_labels)
-            ax.tick_params(axis='y', labelsize=fontsize_ticks)
-            ax.grid(alpha=0.3)
-
-        legend_handles = [
+        # Definicja legendy
+        legend_elements = [
             Patch(facecolor=colors[0], edgecolor="black", label="Zestaw 1"),
-            Patch(facecolor=colors[1], edgecolor="black", label="Zestaw 2")
+            Patch(facecolor=colors[1], edgecolor="black", label="Zestaw 2"),
+            Line2D([0], [0], color='none', label=''), 
+            Line2D([0], [0], color='none', label='Test U Manna-Whitneya:', markersize=0),
+            Line2D([0], [0], marker='$***$', color='black', label='p < 0.001', 
+                   linestyle='none', markersize=18),
+            Line2D([0], [0], marker='$**$', color='black', label='p < 0.01', 
+                   linestyle='none', markersize=13),
+            Line2D([0], [0], marker='$*$', color='black', label='p < 0.05', 
+                   linestyle='none', markersize=7),
+            Line2D([0], [0], marker='$ns$', color='black', label='p ≥ 0.05', 
+                   linestyle='none', markersize=10),
         ]
 
-        fig.legend(
-            handles=legend_handles,
-            loc="upper right",
-            bbox_to_anchor=(1.02, 0.97),
-            ncol=1,
-            frameon=False,
-            handlelength=1.2,
-            handleheight=1.2,
-            fontsize=12
-        )
-
-        fig.suptitle(
-            f"{label_map[feat]} — piki referencyjne (zestaw 1 vs zestaw 2)",
-            fontsize=15,
-            y=0.94
-        )
-
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        # Umieszczenie legendy całkowicie na prawo od subplotów
+        leg = fig.legend(handles=legend_elements, 
+                   loc='center left', 
+                   bbox_to_anchor=(0.82, 0.5), # Przesunięcie na prawo
+                   frameon=False, 
+                   fontsize=10, 
+                   handletextpad=0.8)
+        
+        for text in leg.get_texts():
+            if text.get_text() == 'Test U Manna-Whitneya:':
+                # Przesunięcie o -20 punktów w lewo (wartość dobrana do handlelength)
+                text.set_position((-32, 0))
+                
+        fig.suptitle(f"{label_map[feat]} — porównanie zestawów", 
+                     fontsize=16, y=0.94)
+        
+        # rect=[0, 0, 0.82, 0.95] ścieśnia wykresy do 82% szerokości, robiąc miejsce na legendę
+        plt.tight_layout(rect=[0, 0, 0.82, 0.95]) 
+        plt.savefig(f"rysunki/{feat}.pdf", format="pdf", bbox_inches='tight')
         plt.show()
         
 def plot_signal_with_reference_peaks(dataset, file_name):
@@ -1056,6 +1043,77 @@ def plot_signal_with_reference_peaks(dataset, file_name):
     plt.legend(fontsize=8)
     plt.grid(alpha=0.3)
     plt.tight_layout()
+    plt.show()
+    
+def plot_filt_comparison(dataset_list, file_names, dataset_labels=None, colors_signal="lightseagreen"):
+    """
+    Porównanie sygnałów (wiersze: różne pliki, kolumny: różne wersje datasetów).
+    Piki referencyjne tylko na pierwszym dataset.
+    
+    Parameters
+    ----------
+    dataset_list : list of list of dict
+        Lista datasetów (np. [it1, it1_smooth_3Hz, it1_smooth_4Hz])
+    file_names : list of str
+        Nazwy plików do pokazania w wierszach
+    dataset_labels : list of str
+        Nazwy kolumn (np. ['Sygnał oryginalny', 'Po filtracji 3Hz', 'Po filtracji 4Hz'])
+    colors_signal : str
+        Kolor linii sygnału
+    """
+    n_rows = len(file_names)
+    n_cols = len(dataset_list)
+    
+    if dataset_labels is None:
+        dataset_labels = [f"Wersja {i+1}" for i in range(n_cols)]
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 3*n_rows), sharey=False)
+    
+    if n_rows == 1:
+        axes = np.expand_dims(axes, axis=0)
+    if n_cols == 1:
+        axes = np.expand_dims(axes, axis=1)
+    
+    peak_colors = {"P1": "red", "P2": "green", "P3": "blue"}
+    
+    for i, file_name in enumerate(file_names):
+        for j, dataset in enumerate(dataset_list):
+            ax = axes[i, j]
+            item = next(d for d in dataset if d["file"] == file_name)
+            sig = item["signal"]
+            t = sig.iloc[:, 0].values
+            y = sig.iloc[:, 1].values
+            
+            ax.plot(t, y, color=colors_signal, linewidth=1.5)
+            
+            # Piki referencyjne tylko w pierwszej kolumnie
+            if j == 0:
+                for peak, color in peak_colors.items():
+                    ref = item["peaks_ref"].get(peak)
+                    if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
+                        ax.plot(
+                            t[ref],
+                            y[ref],
+                            "o",
+                            color=color,
+                            markersize=6,
+                            label=peak
+                        )
+            
+            if i == 0:
+                ax.set_title(dataset_labels[j], fontsize=16, pad=10)
+            if j == 0:
+                ax.set_ylabel("Amplituda", fontsize=12)
+            
+            ax.set_xlabel("Numer próbki", fontsize=12)
+            ax.grid(alpha=0.3)
+            
+            # legenda tylko w pierwszej kolumnie i pierwszym wierszu
+            if i == 0 and j == 0:
+                ax.legend(fontsize=10, loc="upper right")
+    
+    plt.tight_layout()
+    plt.savefig("rysunki/filtracja.pdf", format="pdf", bbox_inches=None)
     plt.show()
         
 if __name__ == "__main__":
