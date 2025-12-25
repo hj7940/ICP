@@ -588,9 +588,9 @@ datasets = [
     (it1, "it1"),
     (it1_smooth_4Hz, "it1_smooth_4Hz"),
     (it1_smooth_3Hz, "it1_smooth_3Hz"),
-    # (it2, "it2"),
-    # (it2_smooth_4Hz, "it2_smooth_4Hz"),
-    # (it2_smooth_3Hz, "it2_smooth_3Hz"),
+    (it2, "it2"),
+    (it2_smooth_4Hz, "it2_smooth_4Hz"),
+    (it2_smooth_3Hz, "it2_smooth_3Hz"),
 ]
 
 # %% ujednolicenie struktury zakresow dla time i amps oraz policzenie 
@@ -1090,13 +1090,19 @@ if __name__ == "__main__":
     
     
     peaks = ["P1","P2","P3"]
-    classes = ["Class1","Class2","Class3","Class4"]
+    # classes = ["Class1","Class2","Class3","Class4"]
+    classes = ["Class1"]
     
     top_xy_dfs = {}
     top_minxy_dfs = {}
     
-    min_fraction = 0.90
-    min_TP = 240
+    min_fraction = 0.80
+    min_TP_per_class = {   #zmiana
+        "Class1": 230,
+        "Class2": 230,
+        "Class3": 255,
+        "Class4": 85,
+    }
     # max_XY_Error = 30
     
     # Tworzenie osobnych DF-ów
@@ -1107,7 +1113,7 @@ if __name__ == "__main__":
                 (df_it1_avg["Peak"] == pk) &
                 (df_it1_avg["Class"] == class_id) &
                 (df_it1_avg["%_Signals_with_Peak"] >= min_fraction) &
-                (df_it1_avg["TP"] >= min_TP)
+                (df_it1_avg["TP"] >= min_TP_per_class[class_id])
                 #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
                 #(df_it1_avg["Peak_Count"] <= 10)
             ].copy()
@@ -1129,7 +1135,7 @@ if __name__ == "__main__":
     cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
     df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    df_top_xy_all[cols_to_keep].to_csv("wyniki_final_same4Hz_test.csv", sep=' ', index=False)
+    df_top_xy_all[cols_to_keep].to_csv("25_12_same_Class1P2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)

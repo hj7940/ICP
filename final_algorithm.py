@@ -42,7 +42,7 @@ from all_plots import (plot_files_in_class, plot_upset_classic_postproc,
 
 # do sprawdzenia
 
-def peak_detection_single(dataset, dataset_raw, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
+def peak_detection_single(dataset, method_name, class_id, peak, time_ranges=None, amp_ranges=None, ranges_name=None):
     """
     Wykrywa pojedynczy pik w zadanej klasie.
     
@@ -68,6 +68,7 @@ def peak_detection_single(dataset, dataset_raw, method_name, class_id, peak, tim
         
         file = item["file"]
         sig = item["signal"]
+        sig_raw=item["signal_raw"]
         y = sig.iloc[:, 1].values
         t = sig.iloc[:, 0].values
 
@@ -103,6 +104,7 @@ def peak_detection_single(dataset, dataset_raw, method_name, class_id, peak, tim
             "peak": peak, 
             "file": file,
             "signal": sig,
+            "signal_raw": sig_raw,
             "peaks_ref": {peak: item.get("peaks_ref", {}).get(peak, np.nan)},
             "peaks_detected": {peak: detected_peaks}
         })
@@ -156,7 +158,6 @@ def run_variant(
 
         res = peak_detection_single(
             dataset=dataset,
-            dataset_raw=
             method_name=row.method,
             class_id=row["class"],
             peak=row.peak,
@@ -188,12 +189,14 @@ def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
         method = item.get("method", None)
         class_id = item["class"]
         sig = item["signal"]
+        sig_raw=item["signal_raw"]
         
         if file_name not in combined:
             combined[file_name] = {
                 "class": class_id,
                 "file": file_name,
                 "signal": sig,
+                "signal_raw": sig_raw,
                 "method": method,
                 "peaks_ref": {peak: np.nan for peak in expected_peaks},
                 "peaks_detected": {peak: [] for peak in expected_peaks}
@@ -230,6 +233,16 @@ def postprocess_peaks(results_combined):
         def last_peak(p):
             return [int(p[-1])] if len(p) > 0 else []
         
+        def middle_peak(p):
+            """
+            Środkowy element listy.
+            Dla parzystej liczby → wcześniejszy z dwóch środkowych.
+            """
+            if len(p) == 0:
+                return []
+            idx = (len(p) - 1) // 2
+            return [int(p[idx])]
+        
         def _finalize_peaks(peaks):
             """
             []  -> np.nan
@@ -251,10 +264,10 @@ def postprocess_peaks(results_combined):
             peaks["P3"] = last_peak(peaks["P3"])
 
             # P1: jeśli kilka → średnia
-            peaks["P1"] = mean_peak(peaks["P1"])
+            peaks["P1"] = first_peak(peaks["P1"])
 
             # P2: jesli kilka - pierwszy
-            peaks["P2"] = first_peak(peaks["P2"])
+            peaks["P2"] = middle_peak(peaks["P2"])
 
             # jeśli P2 i P3 zbyt blisko → usuń oba
             if peaks["P2"] and peaks["P3"]:
@@ -285,12 +298,20 @@ def postprocess_peaks(results_combined):
         # -------- Class2 ---------
         # =========================
         elif class_id == "Class2":
-            # P3: średnia
-            peaks["P3"] = mean_peak(peaks["P3"])
+            # P3: jeśli 2 → drugi, jeśli >2 → środkowy
+            if len(peaks["P3"]) == 2:
+                peaks["P3"] = [peaks["P3"][1]]
+            else:
+                peaks["P3"] = middle_peak(peaks["P3"])
 
-            # P2: pierwszy
-            peaks["P2"] = first_peak(peaks["P2"])
-
+            if peaks["P3"]:
+                peaks["P2"] = [p for p in peaks["P2"] if p <= peaks["P3"][0]]
+            # P2: ostatni, a jeśli dokładnie 3 → środkowy
+            if len(peaks["P2"]) == 3:
+                peaks["P2"] = middle_peak(peaks["P2"])
+            else:
+                peaks["P2"] = last_peak(peaks["P2"])
+                
             # P1: pierwszy
             peaks["P1"] = first_peak(peaks["P1"])
             
@@ -316,10 +337,10 @@ def postprocess_peaks(results_combined):
         # =========================
         elif class_id == "Class3":
             # P3: średnia
-            peaks["P3"] = mean_peak(peaks["P3"])
+            peaks["P3"] = last_peak(peaks["P3"])
 
             # P1: średnia
-            peaks["P1"] = mean_peak(peaks["P1"])
+            peaks["P1"] = first_peak(peaks["P1"])
 
             # P2: pierwszy
             peaks["P2"] = first_peak(peaks["P2"])
@@ -344,7 +365,7 @@ def postprocess_peaks(results_combined):
         # =========================
         elif class_id == "Class4":
             # tylko P2, jeśli kilka → średnia
-            peaks["P2"] = mean_peak(peaks["P2"])
+            peaks["P2"] = middle_peak(peaks["P2"])
             peaks["P1"] = []
             peaks["P3"] = []
             
@@ -499,7 +520,7 @@ def compute_metrics_pre_postproc(dataset, class_name):
         dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
 
         for item in class_signals:
-            sig = item["signal"]
+            sig = item["signal_raw"]
             t = sig.iloc[:,0].values
             y = sig.iloc[:,1].values
 
@@ -559,7 +580,7 @@ def compute_metrics_postproc(dataset, class_name):
         dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
 
         for item in class_signals:
-            sig = item["signal"]
+            sig = item["signal_raw"]
             t = sig.iloc[:,0].values
             y = sig.iloc[:,1].values
 
@@ -688,54 +709,83 @@ Class4:
 """
 
 
-# --- wariant a ---
-df_variant_a = pd.DataFrame([
+# # --- wariant a ---
+# df_variant_a = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),  
+#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
+#     ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
+#     ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
+
+# # --- wariant b ---
+# df_variant_b = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it1",            "it1",            "full", "concave"),
+#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
+#     ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
+#     ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
+
+# --- wariant NOWY ---
+df_new = pd.DataFrame([
     # -------- Class1 --------
-    ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),  
-    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
-    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
+    ("Class1", "P1", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
+    ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "line_distance_3"),
+    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"), # lub 0,002
 
     # -------- Class2 --------
-    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
-    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
-    ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
+    ("Class2", "P1", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
+    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "whiskers", "hilbert"), # full hilbert tez ok
+    ("Class2", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class3 --------
-    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
-    ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
+    ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg", "wavelet"),
+    ("Class3", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
+    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class4 --------
-    ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
-],
-columns=[
-    "class",
-    "peak",
-    "detect_dataset",
-    "ranges_dataset",
-    "range_type",
-    "method"
-])
-
-# --- wariant b ---
-df_variant_b = pd.DataFrame([
-    # -------- Class1 --------
-    ("Class1", "P1", "it1",            "it1",            "full", "concave"),
-    ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
-    ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
-
-    # -------- Class2 --------
-    ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
-    ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
-    ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
-
-    # -------- Class3 --------
-    ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
-    ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
-    ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
-
-    # -------- Class4 --------
-    ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
+    ("Class4", "P2", "it2", "it2_smooth_4Hz", "full", "concave_d2x=0-002"),
 ],
 columns=[
     "class",
@@ -747,9 +797,6 @@ columns=[
 ])
 
 datasets_dict = {
-    # "it1": it1,
-    # "it1_smooth_4Hz": it1_smooth_4Hz,
-    # "it1_smooth_3Hz": it1_smooth_3Hz,
     "it2": it2,
     "it2_smooth_4Hz": it2_smooth_4Hz,
     "it2_smooth_3Hz": it2_smooth_3Hz,
@@ -758,44 +805,77 @@ datasets_dict = {
 
 
 # %% ================= DRUGI ZESTAW (IT2) ====================
-results_a_it2 = run_variant(
-    df_variant_a,
+# results_a_it2 = run_variant(
+#     df_variant_a,
+#     datasets_dict=datasets_dict,
+#     ranges_all_time=ranges_all_time,
+#     ranges_all_amps=ranges_all_amps)
+
+# results_combined_a_it2 = combine_peaks_by_file(results_a_it2)
+# results_combined_a_it2_pp = postprocess_peaks(results_combined_a_it2)
+
+# df_pogladowe_a_it2_pp = pd.DataFrame([
+#     {
+#         "file": d["file"],
+#         "peaks_ref": d["peaks_ref"],
+#         "peaks_detected": d["peaks_detected"],
+# }
+#     for d in results_combined_a_it2_pp])
+
+
+
+# results_b_it2 = run_variant(
+#     df_variant_b,
+#     datasets_dict=datasets_dict,
+#     ranges_all_time=ranges_all_time,
+#     ranges_all_amps=ranges_all_amps)
+
+# results_combined_b_it2 = combine_peaks_by_file(results_b_it2)
+# results_combined_b_it2_pp = postprocess_peaks(results_combined_b_it2)
+
+# df_pogladowe_b_it2_pp = pd.DataFrame([
+#     {
+#         "file": d["file"],
+#         "peaks_ref": d["peaks_ref"],
+#         "peaks_detected": d["peaks_detected"],
+#     }
+#     for d in results_combined_b_it2_pp])
+
+# %% ============== OSTATECZNE STARCIE ===============
+results_new = run_variant(
+    df_new,
     datasets_dict=datasets_dict,
     ranges_all_time=ranges_all_time,
     ranges_all_amps=ranges_all_amps)
 
-results_combined_a_it2 = combine_peaks_by_file(results_a_it2)
-results_combined_a_it2_pp = postprocess_peaks(results_combined_a_it2)
+results_combined_new = combine_peaks_by_file(results_new)
+results_combined_new_pp = postprocess_peaks(results_combined_new)
 
-df_pogladowe_a_it2_pp = pd.DataFrame([
-    {
-        "file": d["file"],
-        "peaks_ref": d["peaks_ref"],
-        "peaks_detected": d["peaks_detected"],
-}
-    for d in results_combined_a_it2_pp])
-
-
-
-results_b_it2 = run_variant(
-    df_variant_b,
-    datasets_dict=datasets_dict,
-    ranges_all_time=ranges_all_time,
-    ranges_all_amps=ranges_all_amps)
-
-results_combined_b_it2 = combine_peaks_by_file(results_b_it2)
-results_combined_b_it2_pp = postprocess_peaks(results_combined_b_it2)
-
-df_pogladowe_b_it2_pp = pd.DataFrame([
+df_pogladowe_new = pd.DataFrame([
     {
         "file": d["file"],
         "peaks_ref": d["peaks_ref"],
         "peaks_detected": d["peaks_detected"],
     }
-    for d in results_combined_b_it2_pp])
+    for d in results_combined_new])
 
+df_pogladowe_new_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_new_pp])
 
-# classes = ["Class1", "Class2", "Class3", "Class4"]
+classes = ["Class1", "Class2", "Class3", "Class4"]
+
+df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
+df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
+df_metrics_pre.to_csv("25_12_metrics_pre.csv", index=False)
+
+# for cls in classes:
+#     plot_files_in_class(results_combined_new_pp, cls)
+
 
 # # wariant a
 # df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
@@ -825,7 +905,7 @@ df_pogladowe_b_it2_pp = pd.DataFrame([
 #     plot_upset_classic_postproc(results_combined_a_it2_pp, class_id)
 #     plot_upset_classic_postproc(results_combined_b_it2_pp, class_id)
 
-df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').str[0]
+# df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').str[0]
 
 
 # plot_signal_pre_post(
@@ -834,7 +914,7 @@ df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').st
 #     file_name="Class1_example_0050"
 # )
 
-plot_signal_with_concave_areas(it1, "Class1_example_0028")
+# plot_signal_with_concave_areas(it1, "Class1_example_0028")
 
 
 
