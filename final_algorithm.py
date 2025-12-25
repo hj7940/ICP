@@ -885,7 +885,7 @@ datasets_dict = {
 }
 
 
-
+out_dir = "rysunki"
 # %% ================= DRUGI ZESTAW (IT2) ====================
 # results_a_it2 = run_variant(
 #     df_variant_a,
@@ -960,9 +960,18 @@ classes = ["Class1", "Class2", "Class3",]
 for class_id in classes:
     # plot_upset_classic_postproc(results_combined_new, class_id)
     plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
+    plt.savefig(
+        os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
+        format="pdf",
+        bbox_inches="tight"
+    )
 
 plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
-
+plt.savefig(
+    os.path.join(out_dir, "pie_Class4_P2_post.pdf"),
+    format="pdf",
+    bbox_inches="tight"
+)
 results_new_simpl = run_variant(
     df_new_simplified,
     datasets_dict=datasets_dict,
@@ -997,7 +1006,7 @@ df_pogladowe_new_s_pp = pd.DataFrame([
 
 # for cls in classes:
 #     plot_files_in_class(results_combined_new_s_pp, cls)
-out_dir = "rysunki"
+
 classes = ["Class1", "Class2", "Class3"]
 for class_id in classes:
     # plot_upset_classic_postproc(results_combined_new_s, class_id)

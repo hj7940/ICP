@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.lines import Line2D
 from itertools import groupby
+import ast
 
 
 # def has_peak(v):
@@ -464,10 +465,10 @@ def plot_all_signals_with_peaks_by_peak_type(
         "concave_tuned": "Maksima w odcinkach wklęsłych (+parametry find_peaks)",
         "concave_d2x=-0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: -0,002)",
         "concave_d2x=0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: 0,002)",
-        "modified_scholkmann0-5": "Zmodyfikowana metoda Scholkmanna (limit=0.5)",
-        "modified_scholkmann1": "Zmodyfikowana metoda Scholkmanna (limit=1.0)",
+        "modified_scholkmann0-5": "Zmodyfikowany algorytm Scholkmanna (limit=0.5)",
+        "modified_scholkmann1": "Zmodyfikowany algorytm Scholkmanna (limit=1.0)",
         "curvature": "Maksymalna krzywizna",
-        "line_distance_8": "Odległość od linii bazowej",
+        "line_distance_8": "Odległość od linii",
         "line_perpendicular_8": "Odległość prostopadła do linii",
         "hilbert": "Transformata Hilberta",
         "wavelet": "Ciągła transformata falkowa"
@@ -1188,17 +1189,134 @@ def plot_peak_detection_pie_new(results_combined, class_id, peak="P2", tolerance
 
     labels = [f"{peak} wykryty", f"{peak} niewykryty"]
     sizes = [tp_count, fn_count]
-    colors = ["#66b3ff", "#ff9999"]
+    colors = ["lightblue", "lightseagreen"]
 
     plt.figure(figsize=(6,6))
     plt.pie(
         sizes,
         labels=labels,
         colors=colors,
-        autopct="%1.1f%%",
+        autopct="%1.0f%%",
         startangle=90
     )
-    plt.title(f"Klasa {class_id[-1]}", fontsize=12)
+    plt.title(f"Klasa {class_id[-1]}", fontsize=14)
+    # plt.show()
+
+
+def plot_all_signals_with_peaks(
+    detection_results,
+    method_name,
+    ranges_name,
+    classes=("Class1", "Class2", "Class3", "Class4")
+):
+    """
+    Grid: wiersze = klasy, kolumny = typy pików
+    - wszystkie sygnały
+    - średni sygnał
+    - histogram gęstości pików referencyjnych (green)
+    - histogram gęstości pików automatycznych (red)
+    """
+
+    fig, axes = plt.subplots(2,2, figsize=(15, 12), squeeze=False, 
+                             gridspec_kw={"wspace":0.35, "hspace":0.2})
+    axes = axes.flatten()
+    
+    titles_dict = {
+        "concave": "Maksima w odcinkach wklęsłych",
+        "concave_tuned": "Maksima w odcinkach wklęsłych (+parametry find_peaks)",
+        "concave_d2x=-0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: -0,002)",
+        "concave_d2x=0-002": "Maksima w odcinkach wklęsłych (próg 2. pochodnej: 0,002)",
+        "modified_scholkmann0-5": "Zmodyfikowany algorytm Scholkmanna (limit=0.5)",
+        "modified_scholkmann1": "Zmodyfikowany algorytm Scholkmanna (limit=1.0)",
+        "curvature": "Maksymalna krzywizna",
+        "line_distance_8": "Odległość od linii",
+        "line_perpendicular_8": "Odległość prostopadła do linii",
+        "hilbert": "Transformata Hilberta",
+        "wavelet": "Ciągła transformata falkowa"
+    }
+    
+    ranges_dict = {
+        "full": "min-max",
+        "avg": "na podstawie średniej ruchomej",
+        "whiskers": "wąsy"}
+
+    for i, class_name in enumerate(classes):
+        # wybieramy tylko dane tej klasy
+        class_items = [
+            d for d in detection_results
+            if d["class"] == class_name
+            and d["method"] == method_name
+            and (ranges_name is None or d["ranges"] == ranges_name)
+        ]
+        
+        ax = axes[i]
+
+        if not class_items:
+            ax.set_visible(False)
+            continue
+
+        t = class_items[0]["signal"].iloc[:, 0].values
+        all_x = [item["signal"].iloc[:, 1].values for item in class_items]
+        mean_signal = np.mean(all_x, axis=0)
+        
+        for item in class_items:
+            ax.plot(t, item["signal"].iloc[:, 1].values, color="black", alpha=0.05, linewidth=0.5)
+
+        # średni sygnał
+        ax.plot(t, mean_signal, color="blue", linewidth=1.8, label="Średni sygnał")
+
+        # zbieramy wszystkie piki (bez podziału na typy)
+        manual_t = []
+        auto_t = []
+        for item in class_items:
+            if item.get("peaks_ref") is not None:
+                for p in item["peaks_ref"].values():
+                    if p is not None and not np.isnan(p):
+                        manual_t.append(t[int(p)])
+            if item.get("peaks_detected") is not None:
+                for plist in item["peaks_detected"].values():
+                    auto_t.extend([t[int(p)] for p in plist])
+
+        # histogramy pików
+        ax_hist = ax.twinx()
+        if manual_t:
+            ax_hist.hist(manual_t, bins=40, alpha=0.4, color="green", label="Piki referencyjne")
+        if auto_t:
+            ax_hist.hist(auto_t, bins=40, alpha=0.4, color="red", label="Piki wykryte")
+        # ax_hist.get_yaxis().set_visible(False)
+        
+        ax.set_xlim(0, 180)
+        ax.set_ylim(bottom=0)
+        
+        ax_hist.set_ylim(bottom=0)
+        
+        ax.margins(x=0, y=0)
+        ax_hist.margins(y=0)
+        
+        ax.set_title(f"Klasa {class_name[-1]}", fontsize=16)
+        ax.set_xlabel("Numer próbki", fontsize=12)
+        ax.set_ylabel("Amplituda", fontsize=12)
+        ax_hist.set_ylabel("Liczba pików", fontsize=12)
+        ax.grid(alpha=0.3)
+
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax_hist.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, loc="upper right")
+        
+    #     ax.set_title(f"Klasa: {class_name} (N={len(class_items)})", fontsize=16)
+    #     ax.set_xlabel("Numer próbki")
+    #     ax.set_ylabel("Amplituda")
+
+    # # globalna legenda
+    # handles, labels = [], []
+    # for ax in axes:
+    #     h, l = ax.get_legend_handles_labels()
+    #     handles += h
+    #     labels += l
+    # fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False)
+
+    fig.suptitle(f"{titles_dict.get(method_name, method_name)}", fontsize=20, y=0.94)
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
     # plt.show()
 
     

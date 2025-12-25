@@ -13,7 +13,8 @@ from methods import (concave, curvature, modified_scholkmann,
 from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
                     generate_ranges_for_all_files, compute_ranges_avg)
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
-                       plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison)
+                       plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison,
+                       plot_all_signals_with_peaks)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -641,7 +642,20 @@ if __name__ == "__main__":
     wyniki_base = "wyniki_final_poprawne_bledy_same4Hz"
     os.makedirs(wyniki_base, exist_ok=True)
 
-    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+
+    det = peak_detection(
+    dataset=it1,          # albo it1_smooth_3Hz
+    method_name="curvature",           # wybrana metoda
+    time_ranges=None,  # odpowiednie zakresy
+    amp_ranges=None,   # odpowiednie zakresy
+    ranges_name="none",
+    tuned_params=None                # jeśli nie używasz concave_tuned
+    )   
+    
+    plot_all_signals_with_peaks(det, "curvature", "none")
+    plt.savefig("rysunki/bez_zakresow_curvature.pdf", format="pdf", bbox_inches=None)
+
     
     # df_it1 = analyze_avg_crossings(it1, "it1")
     # df_it1_3Hz = analyze_avg_crossings(it1_smooth_3Hz, "it1_smooth_3Hz")
@@ -1078,64 +1092,64 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    # it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    dfs_avg = []
-    for config_name, method_dict in it1_results.items():
-        for method_name, (df_all, df_avg) in method_dict.items():
-            df = df_avg.copy()
-            df["Config"] = f"{config_name}_{method_name}"
-            dfs_avg.append(df)
-    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    # dfs_avg = []
+    # for config_name, method_dict in it1_results.items():
+    #     for method_name, (df_all, df_avg) in method_dict.items():
+    #         df = df_avg.copy()
+    #         df["Config"] = f"{config_name}_{method_name}"
+    #         dfs_avg.append(df)
+    # df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
     
     
-    peaks = ["P1","P2","P3"]
-    # classes = ["Class1","Class2","Class3","Class4"]
-    classes = ["Class1"]
+    # peaks = ["P1","P2","P3"]
+    # # classes = ["Class1","Class2","Class3","Class4"]
+    # classes = ["Class1"]
     
-    top_xy_dfs = {}
-    top_minxy_dfs = {}
+    # top_xy_dfs = {}
+    # top_minxy_dfs = {}
     
-    min_fraction = 0.80
-    min_TP_per_class = {   #zmiana
-        "Class1": 230,
-        "Class2": 230,
-        "Class3": 255,
-        "Class4": 85,
-    }
-    # max_XY_Error = 30
+    # min_fraction = 0.80
+    # min_TP_per_class = {   #zmiana
+    #     "Class1": 230,
+    #     "Class2": 230,
+    #     "Class3": 255,
+    #     "Class4": 85,
+    # }
+    # # max_XY_Error = 30
     
-    # Tworzenie osobnych DF-ów
-    for class_id in classes:
-        for pk in peaks:
-            # --- filtr po udziale sygnałów ---
-            df_filtered = df_it1_avg[
-                (df_it1_avg["Peak"] == pk) &
-                (df_it1_avg["Class"] == class_id) &
-                (df_it1_avg["%_Signals_with_Peak"] >= min_fraction) &
-                (df_it1_avg["TP"] >= min_TP_per_class[class_id])
-                #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
-                #(df_it1_avg["Peak_Count"] <= 10)
-            ].copy()
+    # # Tworzenie osobnych DF-ów
+    # for class_id in classes:
+    #     for pk in peaks:
+    #         # --- filtr po udziale sygnałów ---
+    #         df_filtered = df_it1_avg[
+    #             (df_it1_avg["Peak"] == pk) &
+    #             (df_it1_avg["Class"] == class_id) &
+    #             (df_it1_avg["%_Signals_with_Peak"] >= min_fraction) &
+    #             (df_it1_avg["TP"] >= min_TP_per_class[class_id])
+    #             #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+    #             #(df_it1_avg["Peak_Count"] <= 10)
+    #         ].copy()
             
-            error_cols = ["Mean_XY_Error", "Min_XY_Error"]
+    #         error_cols = ["Mean_XY_Error", "Min_XY_Error"]
             
-            df_filtered[error_cols] = df_filtered[error_cols].round(10)
-            #print(df_filtered.columns.tolist())
-            df_merged = merge_identical_configs_before_top(df_filtered)
+    #         df_filtered[error_cols] = df_filtered[error_cols].round(10)
+    #         #print(df_filtered.columns.tolist())
+    #         df_merged = merge_identical_configs_before_top(df_filtered)
             
-            # --- Mean_XY_Error ---
-            df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
-            top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
+    #         # --- Mean_XY_Error ---
+    #         df_top_xy = top10_configs(df_merged, pk, class_id, metric="Mean_XY_Error")
+    #         top_xy_dfs[f"{class_id}_{pk}"] = df_top_xy
     
-            # --- Min_XY_Error ---
-            df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
-            top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
+    #         # --- Min_XY_Error ---
+    #         df_top_minxy = top10_configs(df_merged, pk, class_id, metric="Min_XY_Error")
+    #         top_minxy_dfs[f"{class_id}_{pk}"] = df_top_minxy
     
-    cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
+    # cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
-    df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    df_top_xy_all[cols_to_keep].to_csv("25_12_same_Class1P2.csv", sep=' ', index=False)
+    # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
+    # df_top_xy_all[cols_to_keep].to_csv("25_12_same_Class1P2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)
