@@ -1115,6 +1115,92 @@ def plot_filt_comparison(dataset_list, file_names, dataset_labels=None, colors_s
     plt.tight_layout()
     plt.savefig("rysunki/filtracja.pdf", format="pdf", bbox_inches=None)
     plt.show()
-        
+    
+def is_true_positive(item, peak, tolerance=3):
+    """
+    Sprawdza, czy dany pik jest TRUE POSITIVE:
+    - wykryty (nie NaN)
+    - istnieje referencja
+    - |detected - ref| <= tolerance
+    """
+    det = item["peaks_detected"].get(peak)
+    ref = item["peaks_ref"].get(peak)
+
+    if det is None or ref is None:
+        return False
+
+    if isinstance(det, float) and math.isnan(det):
+        return False
+    if isinstance(ref, float) and math.isnan(ref):
+        return False
+
+    return abs(det - ref) <= tolerance
+
+def plot_upset_classic_postproc_new(results_pp, class_name, tolerance=3):
+    rows = []
+
+    for r in results_pp:
+        if r["class"] != class_name:
+            continue
+
+        rows.append({
+            "P1": is_true_positive(r, "P1", tolerance),
+            "P2": is_true_positive(r, "P2", tolerance),
+            "P3": is_true_positive(r, "P3", tolerance),
+        })
+
+    df = pd.DataFrame(rows)
+
+    series = df.value_counts().sort_index()
+
+    total = 250 if class_name != "Class4" else 50
+    perc = series / total * 100
+
+    plt.figure(figsize=(6, 4))
+    u = UpSet(
+        perc,
+        show_counts=True,
+        sort_by="cardinality",
+        sort_categories_by="-input"
+    ).plot()
+
+    plt.suptitle(f"Klasa {class_name[-1]}", fontsize=12)
+
+    for ax in plt.gcf().axes:
+        if ax.get_ylabel() == "Intersection size":
+            ax.set_ylabel("Udział sygnałów [%]")
+
+    u['totals'].set_xlabel("Wykryte piki [%]", fontsize=10)
+    plt.tight_layout()
+    # plt.show()
+
+
+def plot_peak_detection_pie_new(results_combined, class_id, peak="P2", tolerance=3):
+    class_results = [d for d in results_combined if d["class"] == class_id]
+
+    tp_count = sum(
+        1 for d in class_results
+        if is_true_positive(d, peak, tolerance)
+    )
+
+    total = len(class_results)
+    fn_count = total - tp_count
+
+    labels = [f"{peak} wykryty", f"{peak} niewykryty"]
+    sizes = [tp_count, fn_count]
+    colors = ["#66b3ff", "#ff9999"]
+
+    plt.figure(figsize=(6,6))
+    plt.pie(
+        sizes,
+        labels=labels,
+        colors=colors,
+        autopct="%1.1f%%",
+        startangle=90
+    )
+    plt.title(f"Klasa {class_id[-1]}", fontsize=12)
+    # plt.show()
+
+    
 if __name__ == "__main__":
     print("bajo jajo")

@@ -33,12 +33,15 @@ import numpy as np
 # from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
 #                     generate_ranges_for_all_files, compute_ranges_avg)
 import math
+import os
+from collections import defaultdict
+import matplotlib.pyplot as plt
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   it1, it1_smooth_4Hz, it1_smooth_3Hz,
                   ranges_all_time, ranges_all_amps)
-from all_plots import (plot_files_in_class, plot_upset_classic_postproc, 
+from all_plots import (plot_files_in_class, plot_upset_classic_postproc_new, 
                        plot_signal_pre_post, plot_signal_with_concave_areas, 
-                       plot_peak_detection_pie)
+                       plot_peak_detection_pie_new)
 
 # do sprawdzenia
 
@@ -513,39 +516,72 @@ def compute_metrics_pre_postproc(dataset, class_name):
     expected_peaks = ["P1", "P2", "P3"] if class_name != "Class4" else ["P2"]
     metrics_list = []
     # filtrowanie po klasie
-    class_signals = [d for d in dataset if d["class"] == class_name]
+    # class_signals = [d for d in dataset if d["class"] == class_name]
+    grouped = defaultdict(list)
+    for d in dataset:
+        if d["class"] == class_name:
+            grouped[(d["file"], d["peak"])].append(d)
     n_files = 250 if class_name in ["Class1","Class2","Class3"] else 50
+    tolerance = 3
     
     for peak in expected_peaks:
         dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
+        TP_sum, FP_sum, FN_sum = 0, 0, 0
 
-        for item in class_signals:
-            sig = item["signal_raw"]
-            t = sig.iloc[:,0].values
-            y = sig.iloc[:,1].values
+        # for item in class_signals:
+        for (file_name, peak_name), items in grouped.items():  # zmiana
+            if peak_name != peak:                              # zmiana
+                continue                                       # zmiana
 
-            ref_idx = item["peaks_ref"].get(peak)
-            detected = item["peaks_detected"].get(peak, [])
+            # sig = item["signal_raw"]
+            # t = sig.iloc[:,0].values
+            # y = sig.iloc[:,1].values
 
-            if ref_idx is None or len(detected) == 0:
-                continue
+            # ref_idx = item["peaks_ref"].get(peak)
+            # detected = item["peaks_detected"].get(peak, [])
+            detected_all = []                                      # zmiana
+            for it in items:                                       # zmiana
+                detected_all.extend(it["peaks_detected"].get(peak, []))  # zmiana
+            item0 = items[0]                                       # zmiana
+            sig = item0["signal_raw"]                              # zmiana
+            t = sig.iloc[:, 0].values                              # zmiana
+            y = sig.iloc[:, 1].values                              # zmiana
+            ref_idx = item0["peaks_ref"].get(peak)                 # zmiana
 
-            # dopasowanie wielu wykrytych do referencji
-            if np.isscalar(ref_idx):
-                dx = np.abs(t[detected] - t[ref_idx])
-                dy = np.abs(y[detected] - y[ref_idx])
-            else:
-                dx = np.sum([np.abs(t[detected] - t[r]) for r in ref_idx], axis=0)
-                dy = np.sum([np.abs(y[detected] - y[r]) for r in ref_idx], axis=0)
+            # if ref_idx is None or len(detected) == 0:
+            #     FN_sum += 1 
+            #     continue
+            if ref_idx is None or len(detected_all) == 0:           # zmiana
+                FN_sum += 1                                         # zmiana
+                continue                                            # zmiana
 
-            dxy = np.sqrt(dx**2 + dy**2)
+            # # dopasowanie wielu wykrytych do referencji
+            # if np.isscalar(ref_idx):
+            #     dx = np.abs(t[detected] - t[ref_idx])
+            #     dy = np.abs(y[detected] - y[ref_idx])
+            # else:
+            #     dx = np.sum([np.abs(t[detected] - t[r]) for r in ref_idx], axis=0)
+            #     dy = np.sum([np.abs(y[detected] - y[r]) for r in ref_idx], axis=0)
+
+            # dxy = np.sqrt(dx**2 + dy**2)
+            dx = np.abs(t[detected_all] - t[ref_idx])               # zmiana
+            dy = np.abs(y[detected_all] - y[ref_idx])               # zmiana
+            dxy = np.sqrt(dx**2 + dy**2)                             # zmiana
+            
+            TP = int(np.any(dx <= tolerance))                        # zmiana
+            FN = int(TP == 0)                                        # zmiana
+            FP = int(np.sum(dx > tolerance))                         # zmiana
+            
+            TP_sum += TP
+            FP_sum += FP
+            FN_sum += FN
 
             # agregacja po pliku: średnia jeśli wykryto kilka
             dx_all.append(np.mean(dx))
             dy_all.append(np.mean(dy))
             dxy_all.append(np.mean(dxy))
             
-            peak_count_sum += len(detected)
+            peak_count_sum += len(detected_all)
 
         metrics_list.append({
             "Class": class_name,
@@ -554,6 +590,9 @@ def compute_metrics_pre_postproc(dataset, class_name):
             "Mean_Y_Error": np.mean(dy_all) if dy_all else np.nan,
             "Mean_XY_Error": np.mean(dxy_all) if dxy_all else np.nan,
             "Std_XY_Error": np.std(dxy_all) if dxy_all else np.nan,
+            "TP": TP_sum,    # zmiana
+            "FP": FP_sum,    # zmiana
+            "FN": FN_sum,     # zmiana
             "%_Files_With_Peak": len(dx_all)/n_files,
             "Peak_Count": peak_count_sum
         })
@@ -575,9 +614,11 @@ def compute_metrics_postproc(dataset, class_name):
     metrics_list = []
     class_signals = [d for d in dataset if d["class"] == class_name]
     n_files = 250 if class_name in ["Class1","Class2","Class3"] else 50
-
+    tolerance = 3
+    
     for peak in expected_peaks:
         dx_all, dy_all, dxy_all, peak_count_sum = [], [], [], 0
+        TP_sum, FP_sum, FN_sum = 0, 0, 0
 
         for item in class_signals:
             sig = item["signal_raw"]
@@ -589,6 +630,7 @@ def compute_metrics_postproc(dataset, class_name):
 
             # w postproc to albo int albo NaN
             if ref_idx is None or detected_val is None or (isinstance(detected_val, float) and math.isnan(detected_val)):
+                FN_sum += 1
                 continue
 
             if np.isscalar(ref_idx):
@@ -599,6 +641,15 @@ def compute_metrics_postproc(dataset, class_name):
                 dy = np.sum([abs(y[detected_val] - y[r]) for r in ref_idx])
 
             dxy = np.sqrt(dx**2 + dy**2)
+            
+            TP = int(dx <= tolerance)
+            FN = int(TP == 0)
+            FP = int(dx > tolerance)
+            
+            TP_sum += TP
+            FP_sum += FP
+            FN_sum += FN
+
             dx_all.append(dx)
             dy_all.append(dy)
             dxy_all.append(dxy)
@@ -612,6 +663,9 @@ def compute_metrics_postproc(dataset, class_name):
             "Mean_Y_Error": np.mean(dy_all) if dy_all else np.nan,
             "Mean_XY_Error": np.mean(dxy_all) if dxy_all else np.nan,
             "Std_XY_Error": np.std(dxy_all) if dxy_all else np.nan,
+            "TP": TP_sum,    # zmiana
+            "FP": FP_sum,    # zmiana
+            "FN": FN_sum,     # zmiana
             "%_Files_With_Peak": len(dx_all)/n_files,
             "Peak_Count": peak_count_sum
         })
@@ -796,6 +850,34 @@ columns=[
     "method"
 ])
 
+df_new_simplified = pd.DataFrame([
+    # -------- Class1 --------
+    ("Class1", "P1", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
+    ("Class1", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
+    ("Class1", "P3", "it2",            "it2_smooth_4Hz", "full", "concave"), # lub 0,002
+
+    # -------- Class2 --------
+    ("Class2", "P1", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
+    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # full hilbert tez ok
+    ("Class2", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
+
+    # -------- Class3 --------
+    ("Class3", "P1", "it2",            "it2_smooth_4Hz", "avg", "hilbert"),
+    ("Class3", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
+    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
+
+    # -------- Class4 --------
+    ("Class4", "P2", "it2",            "it2_smooth_4Hz", "full", "concave"), # lub concave
+],
+columns=[
+    "class",
+    "peak",
+    "detect_dataset",
+    "ranges_dataset",
+    "range_type",
+    "method"
+])
+
 datasets_dict = {
     "it2": it2,
     "it2_smooth_4Hz": it2_smooth_4Hz,
@@ -869,12 +951,69 @@ df_pogladowe_new_pp = pd.DataFrame([
 
 classes = ["Class1", "Class2", "Class3", "Class4"]
 
-df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
-df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
-df_metrics_pre.to_csv("25_12_metrics_pre.csv", index=False)
+# df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
+# df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
+# df_metrics_pre.to_csv("25_12_metrics_pre.csv", index=False)
+# df_metrics_post.to_csv("25_12_metrics_post.csv", index=False)
+
+classes = ["Class1", "Class2", "Class3",]
+for class_id in classes:
+    # plot_upset_classic_postproc(results_combined_new, class_id)
+    plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
+
+plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
+
+results_new_simpl = run_variant(
+    df_new_simplified,
+    datasets_dict=datasets_dict,
+    ranges_all_time=ranges_all_time,
+    ranges_all_amps=ranges_all_amps)
+
+results_combined_new_s = combine_peaks_by_file(results_new_simpl)
+results_combined_new_s_pp = postprocess_peaks(results_combined_new_s)
+
+df_pogladowe_new_s = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_new_s])
+
+df_pogladowe_new_s_pp = pd.DataFrame([
+    {
+        "file": d["file"],
+        "peaks_ref": d["peaks_ref"],
+        "peaks_detected": d["peaks_detected"],
+    }
+    for d in results_combined_new_s_pp])
+
+# classes = ["Class1", "Class2", "Class3", "Class4"]
+
+# df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
+# df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
+# df_metrics_pre.to_csv("25_12_metrics_pre_simpl.csv", index=False)
+# df_metrics_post.to_csv("25_12_metrics_post_simpl.csv", index=False)
 
 # for cls in classes:
-#     plot_files_in_class(results_combined_new_pp, cls)
+#     plot_files_in_class(results_combined_new_s_pp, cls)
+out_dir = "rysunki"
+classes = ["Class1", "Class2", "Class3"]
+for class_id in classes:
+    # plot_upset_classic_postproc(results_combined_new_s, class_id)
+    plot_upset_classic_postproc_new(results_combined_new_s_pp, class_id)
+    plt.savefig(
+        os.path.join(out_dir, f"upset_{class_id}_post_simpl.pdf"),
+        format="pdf",
+        bbox_inches="tight"
+    )
+    
+plot_peak_detection_pie_new(results_combined_new_s_pp, "Class4")
+plt.savefig(
+    os.path.join(out_dir, "pie_Class4_P2_post_simpl.pdf"),
+    format="pdf",
+    bbox_inches="tight"
+)
 
 
 # # wariant a
