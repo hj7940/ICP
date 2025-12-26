@@ -1,0 +1,52 @@
+% najpierw przetestowałam 5 sposobów wyznaczania pikow: 
+% 1 na pdostawie max. krzywizny, 
+% 2 na podstawie ekstremow lokalnych tam, gdzie druga pochodna <0 
+% 3 na podst max odleglosci prostopadlej od prosrej laczacej konce obszaru wkleslego
+% 4 na podsy max odleglosci pionowej od prostej -||-
+% 5 modified scholkmann
+
+% wyniki: 
+% nr klasy najdokładniejsza metoda
+% 1 curvature (Mean_XY_Error=2,082),
+% line perpendicular (Mean_XY_Error=2.145),
+% line vertical (Mean_XY_Error=2.145)
+% 2 curvature (Mean_XY_Error=2,288),
+% line perpendicular (Mean_XY_Error=2.730),
+% line vertical (Mean_XY_Error=2.730)
+% 3 curvature (Mean_XY_Error=1,575),
+% line perpendicular (Mean_XY_Error=2.576),
+% line vertical (Mean_XY_Error=2.576)
+% 4 modified scholkmann (Mean_XY_Error=0,04),
+% concave (Mean_XY_Error=0,08)
+% (line perpendicular i vertical daje takie same syniki wiec potem liczylam tylko line vertical)
+% ALE nie wzięłam pod uwagę liczby wykrytych pików
+
+% potem policzylam ile pikow wykrywa dana metoda, najwiecej: Scholkann
+% wyprobowalam rozne parametry: skale w scholkmannie (im wieksza tym lepsza dokladnosc), itd.
+% ogolnie albo jest malo punktow i mala dokladnosc, albo duzo punktow i duzo dokladnosc
+% zrobilam wykresy pokazujace wszystkie przebiegi z danej klasy+przebieg usredniony, na zielono: piki referencyjne, na czerwono: wykryte
+% cuvature: bardzo duzo pikow na koncach, w klasach 1-3 spadek w wykrywanych pikach miedzy p1 i p2, ale potem wlasciwie taka sama liczba pikow do konca sygnalu
+% concave: najlepsza, ale tez duo pikow wykrywanych na poczatku (i troche na koncu) sygnalu,
+% line(s): bardzo podobnie jak curvature
+% scholkmann: glowna wada to duza liczba wykrywanych pikow, dodatkowo nie wykrywa w klasie 1 p2, w klasach 2, 3 p1 oraz p3
+
+% analiza statysyczna danych: odrzucono rozklad normalny lokalizacji oraz amplitudy plikow (oraz roznic p1-p2)
+% zrobilam wykresy boxplot
+% wąsy ograniczone do 1.5×IQR 
+% jednak wzielam wartosci mix i max, f it we ball
+
+% zrobilam wykrywanie konkretnie p1, p2 i p3
+% ograniczylam zakresy do min-max z marginesem kilku probek
+%  (1) curvature chyba do wywalenia, no redeeming qualities, sashay away
+% (2) concave 
+%   klasa 1: p1 dobrze, ale czesciowo wykrywa p2, moze warunek amplitudy by poprawil sytuację, p2 słabo, p3 nawet ok ale łapie p2
+%   klasa 2: p1 jw, p2 podobna sytuacja, ale radzi sobie lepiej, p3 tez
+%   klasa 3: jw
+%   klasa 4: bardzo git
+% (3) line p1 najlepiej, p2 posrednio, p3 najgorzej, w klasie 4 nawet ok, ale lapie punkty przed pikiem, poniewaz krzywa tam jest wklęsła
+% (4) scholkmann p1 jest przesuniete w prawo, a w klasie 4 wrecz nie wykrywane, p2 i p3 nawet ok, do rozważenie, w klasie 4 top lokalizacyjne, ale duża liczba pików
+
+% todo - warunki aplitudowe, liczenie kilkoma metodami(?)
+% todo - nadanie punktom wag?
+% todo - rozwazenie progow i prominencji
+% filtry górnoprzepustowe???

@@ -11,10 +11,10 @@ from data_handling import load_dataset, smooth_dataset
 from methods import (concave, curvature, modified_scholkmann, 
                      line_distance, hilbert_envelope, wavelet)
 from ranges import (ranges_full, ranges_pm3, ranges_whiskers, 
-                    generate_ranges_for_all_files, compute_ranges_avg)
+                    generate_ranges_for_all_files, compute_ranges_avg, compute_crossings)
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
                        plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison,
-                       plot_all_signals_with_peaks)
+                       plot_all_signals_with_peaks, plot_two_signals_with_peaks_crossings)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -644,18 +644,24 @@ if __name__ == "__main__":
 
     # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
 
-    det = peak_detection(
-    dataset=it1,          # albo it1_smooth_3Hz
-    method_name="curvature",           # wybrana metoda
-    time_ranges=None,  # odpowiednie zakresy
-    amp_ranges=None,   # odpowiednie zakresy
-    ranges_name="none",
-    tuned_params=None                # jeśli nie używasz concave_tuned
-    )   
+    # det = peak_detection(
+    # dataset=it1,          # albo it1_smooth_3Hz
+    # method_name="curvature",           # wybrana metoda
+    # time_ranges=None,  # odpowiednie zakresy
+    # amp_ranges=None,   # odpowiednie zakresy
+    # ranges_name="none",
+    # tuned_params=None                # jeśli nie używasz concave_tuned
+    # )   
     
-    plot_all_signals_with_peaks(det, "curvature", "none")
-    plt.savefig("rysunki/bez_zakresow_curvature.pdf", format="pdf", bbox_inches=None)
-
+    # plot_all_signals_with_peaks(det, "curvature", "none")
+    # plt.savefig("rysunki/bez_zakresow_curvature.pdf", format="pdf", bbox_inches=None)
+    
+    plot_two_signals_with_peaks_crossings(
+    dataset=it1,
+    filenames=("Class2_example_0042", "Class2_example_0046")
+    )   
+    plt.savefig("rysunki/crossings_porown.pdf", format="pdf", bbox_inches=None)
+    
     
     # df_it1 = analyze_avg_crossings(it1, "it1")
     # df_it1_3Hz = analyze_avg_crossings(it1_smooth_3Hz, "it1_smooth_3Hz")

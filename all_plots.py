@@ -38,6 +38,7 @@ from matplotlib.patches import Rectangle, Patch
 from matplotlib.lines import Line2D
 from itertools import groupby
 import ast
+from ranges import compute_crossings
 
 
 # def has_peak(v):
@@ -1319,6 +1320,84 @@ def plot_all_signals_with_peaks(
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     # plt.show()
 
+
+def plot_two_signals_with_peaks_crossings(
+    dataset,
+    filenames=("Class2_example_0042", "Class2_example_0046"),
+    # colors=("lightblue", "lightseagreen"),
+    window_fast=2,
+    window_slow=9
+):
+    # crossingi
+    crossings = compute_crossings(dataset)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4), sharey=True)
+
+    for ax, fname in zip(axes, filenames):
+        item = next(d for d in dataset if d["file"] == fname)
+        sig_df = item["signal"]
+
+        t = sig_df.iloc[:, 0].values
+        y = sig_df.iloc[:, 1].values
+        class_id = item["class"]
+
+        # średnie ruchome
+        avg_fast = pd.Series(y).rolling(
+            window_fast, min_periods=1, center=True
+        ).mean().to_numpy()
+
+        avg_slow = pd.Series(y).rolling(
+            window_slow, min_periods=1, center=True
+        ).mean().to_numpy()
+
+        # wykres sygnału
+        ax.plot(t, y, color="black", linewidth=1, label="Sygnał")
+
+        # średnie
+        ax.plot(t, avg_fast, "--", color="lightskyblue", linewidth=1,
+                label="Średnia szybka \n (szerokość okna: 2 próbki)")
+        ax.plot(t, avg_slow, "--", color="lightseagreen", linewidth=1,
+                label="Średnia wolna \n (szerokość okna: 4 próbki)")
+
+        # piki referencyjne
+        for p_name, idx in item["peaks_ref"].items():
+            ax.scatter(
+                t[idx], y[idx],
+                color="black", zorder=6
+            )
+            ax.text(
+                t[idx], y[idx]+0.05,
+                p_name, fontsize=10,
+                ha="center", va="bottom"
+            )
+
+        # crossingi
+        cross_dict = crossings[class_id][fname]
+        first = True
+        for p_name, inds in cross_dict.items():
+            for i in inds:
+                ax.axvline(
+                    t[i],
+                    color="mediumpurple",
+                    # linestyle="--",
+                    alpha=0.82,
+                    label="Położenie punktów \n przecięcia średnich" if first else None
+                )
+                first = False
+
+        # ax.set_title(fname)
+        ax.set_xlabel("Numer próbki", fontsize=12)
+        ax.grid(alpha=0.3)
+        y_min, y_max = ax.get_ylim()
+        margin = 0.05 * (y_max - y_min)   # ~8% wysokości osi
+        ax.set_ylim(0, y_max + margin)
+        ax.set_xlim(0, 180)
+
+    axes[0].set_ylabel("Amplituda",  fontsize=12)
+    axes[1].legend(loc="upper right", fontsize=9)
+
+    plt.tight_layout()
+    # plt.show()
     
 if __name__ == "__main__":
     print("bajo jajo")
