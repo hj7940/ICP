@@ -38,7 +38,8 @@ from matplotlib.patches import Rectangle, Patch
 from matplotlib.lines import Line2D
 from itertools import groupby
 import ast
-from ranges import compute_crossings
+from ranges import compute_crossings, compute_ranges_avg
+import glob
 
 
 # def has_peak(v):
@@ -1399,5 +1400,223 @@ def plot_two_signals_with_peaks_crossings(
     plt.tight_layout()
     # plt.show()
     
+def plot_two_signals_with_crossings_binary(
+    dataset,
+    filenames=("Class2_example_0042", "Class2_example_0046"),
+    window_fast=2,
+    window_slow=4,
+    y_scale=0.9  # wartość sygnału prostokątnego
+):
+    """
+    Wykres sygnału ICP z zaznaczonymi punktami przecięcia średnich w formie prostokątnej.
+    Zamiast dwóch średnich ruchomych pokazuje sygnał binarny: 0 = fast <= slow, y_scale = fast > slow
+    """
+    crossings = compute_ranges_avg(dataset)  # korzystamy z Twojej funkcji bazowej
+
+    fig, axes = plt.subplots(1, len(filenames), figsize=(14, 4), sharey=True)
+
+    if len(filenames) == 1:
+        axes = [axes]  # ułatwienie dla jednej osi
+
+    for ax, fname in zip(axes, filenames):
+        item = next(d for d in dataset if d["file"] == fname)
+        sig_df = item["signal"]
+
+        t = sig_df.iloc[:, 0].values
+        y = sig_df.iloc[:, 1].values
+        class_id = item["class"]
+
+        # średnie ruchome
+        avg_fast = pd.Series(y).rolling(window_fast, min_periods=1, center=True).mean().to_numpy()
+        avg_slow = pd.Series(y).rolling(window_slow, min_periods=1, center=True).mean().to_numpy()
+
+        # sygnał binarny (fast > slow)
+        binary_signal = np.zeros_like(y)
+        binary_signal[avg_fast > avg_slow] = y_scale
+        binary_signal += 0.2
+
+        # wykres prostokątny
+        ax.step(t, binary_signal, "--", where="mid", color="mediumpurple", linewidth=1, label="Fast MA > Slow MA")
+
+        # wykres sygnału ICP
+        ax.plot(t, y, color="black", linewidth=1, label="Sygnał ICP")
+        
+        # ax.plot(t, avg_fast, "--", color="lightskyblue", linewidth=1,
+        #         label="Średnia szybka \n (szerokość okna: 2 próbki)")
+        # ax.plot(t, avg_slow, "--", color="lightseagreen", linewidth=1,
+        #         label="Średnia wolna \n (szerokość okna: 4 próbki)")
+
+
+        # piki referencyjne
+        for p_name, idx in item["peaks_ref"].items():
+            ax.scatter(
+                t[idx], y[idx],
+                color="black", zorder=6
+            )
+            ax.text(
+                t[idx], y[idx]+0.05,
+                p_name, fontsize=10,
+                ha="center", va="bottom"
+            )
+
+        # crossingi
+        cross_dict = crossings[class_id][fname]
+        first = True
+        for p_name, inds in cross_dict.items():
+            for i in inds:
+                ax.axvline(
+                    t[i],
+                    color="lightseagreen",
+                    # linestyle="--",
+                    alpha=0.82,
+                    label="Wykryte punkty \n przecięcia średnich" if first else None
+                )
+                first = False
+        # crossingi jako prostokąty
+        cross_dict = crossings[class_id][fname]
+        # tworzymy listę wszystkich crossingów w kolejności
+        all_crossings = []
+        for inds in cross_dict.values():
+            all_crossings.extend(inds)
+        all_crossings = sorted(all_crossings)
+        
+        # kolory i alpha
+        rect_color = "lightgreen"
+        rect_alpha = 0.3
+        
+        # rysujemy prostokąty między punktami: 1-2, 3-4, 5-6
+        for i in range(0, len(all_crossings), 2):
+            if i+1 < len(all_crossings):
+                start = t[all_crossings[i]]
+                end = t[all_crossings[i+1]]
+                ax.axvspan(start, end, color=rect_color, alpha=rect_alpha)
+
+        ax.set_xlabel("Numer próbki", fontsize=12)
+        ax.grid(alpha=0.3)
+        y_min, y_max = ax.get_ylim()
+        margin = 0.05 * (y_max - y_min)
+        ax.set_ylim(0, y_max + margin)
+        ax.set_xlim(0, 180)
+
+    axes[0].set_ylabel("Amplituda", fontsize=12)
+    axes[-1].legend(loc="upper right", fontsize=9)
+    plt.tight_layout()
+
+
+def plot_column_crossing():
+    all_files = glob.glob("crossings_compare/*.csv") 
+    df_list = []
+    
+    for f in all_files:
+        df = pd.read_csv(f, delimiter=",")
+        df_list.append(df)
+    
+    # 2. Połącz w jeden DataFrame
+    df_all = pd.concat(df_list, ignore_index=True)
+    
+    dataset_order = [
+    "it1",
+    "it1_smooth_4Hz",
+    "it1_smooth_3Hz",
+    ]
+    
+    df_all["Dataset"] = pd.Categorical(
+        df_all["Dataset"],
+        categories=dataset_order,
+        ordered=True
+    )
+    
+    # 3. Wersja kolumnowa – wykres porównawczy dla Class i min_distance
+    metric = "%_Signals_with_6_crossings_and_ideal_P1P3"
+
+    datasets = [
+    ("it1", "brak filtracji"),
+    ("it1_smooth_4Hz", "filtracja\n$f_g = 4\\,\\mathrm{Hz}$"),
+    ("it1_smooth_3Hz", "filtracja\n$f_g = 3\\,\\mathrm{Hz}$"),
+    ]
+    
+    classes = ["Class1", "Class2", "Class3"]
+    
+    class_colors = {
+        "Class1": "lightblue",
+        "Class2": "lightseagreen",
+        "Class3": "mediumpurple",
+    }
+        
+    class_map = {
+    "Class1": "Klasa 1",
+    "Class2": "Klasa 2",
+    "Class3": "Klasa 3"
+    }
+    
+    # Twoje specyficzne tytuły dla kolejnych wykresów
+    titles = [
+        "min_distance=0",
+        "min_distance=3 (Klasy: 1, 3)\nmin_distance=5 (Klasa 2)",
+        "min_distance=5 (Klasy: 1, 3)\nmin_distance=10 (Klasa 2)",
+        "min_distance=8 (Klasy: 1, 3)\nmin_distance=12 (Klasa 2)"
+    ]
+    min_distances = sorted(df_all["min_distance"].unique())
+    
+    fig, axes = plt.subplots(
+        1, len(min_distances),
+        figsize=(4 * len(min_distances), 4),
+        sharey=True
+    )
+    
+    if len(min_distances) == 1:
+        axes = [axes]
+    
+    group_gap = 0.2      # Odstęp między całymi grupami
+    bar_width = 0.2      # Szerokość słupka
+    inner_gap = 0.05      # <--- NOWOŚĆ: Odstęp między słupkami w grupie
+    
+    # Obliczamy całkowity krok wewnątrz grupy (szerokość słupka + odstęp)
+    step = bar_width + inner_gap
+    
+    # x_groups musi teraz uwzględniać szerokość wszystkich słupków i przerw między nimi
+    x_groups = np.arange(len(datasets)) * (len(classes) * step + group_gap)
+    
+    for plot_idx, (ax, md) in enumerate(zip(axes, min_distances)):
+        df_md = df_all[df_all["min_distance"] == md]
+    
+        for idx, cls in enumerate(classes):
+            values = []
+            for ds, _ in datasets:
+                row = df_md[(df_md["Dataset"] == ds) & (df_md["Class"] == cls)]
+                values.append(row[metric].values[0] if not row.empty else np.nan)
+    
+            ax.bar(
+                x_groups + idx * step,
+                values,
+                width=bar_width,
+                color=class_colors[cls],
+                label=class_map[cls]  # Użycie polskiej nazwy
+            )
+    
+        # Ustawienie tytułu z listy (jeśli mamy zdefiniowany dla tego indeksu)
+        if plot_idx < len(titles):
+            ax.set_title(titles[plot_idx], fontsize=12, pad=10)
+    
+        ax.set_xticks(x_groups + step)
+        ax.set_xticklabels([lbl for _, lbl in datasets], rotation=0, fontsize=12)
+        ax.grid(axis="y", alpha=0.3)
+    
+    axes[0].set_ylabel("$D_p$ [%]", fontsize=12)
+    
+    # Legenda po prawej stronie, pionowa
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc="center left",
+        bbox_to_anchor=(0.90, 0.5), # Pozycja poza obszarem wykresu
+        ncol=1,                    # Jeden pod drugim
+        frameon=True
+    )
+    
+    plt.tight_layout(rect=[0, 0, 0.9, 1]) # Zostawienie miejsca po prawej na legendę
+    plt.savefig("rysunki/crossings_min_len.pdf", format="pdf", bbox_inches=None)
+    plt.show()
+
 if __name__ == "__main__":
     print("bajo jajo")

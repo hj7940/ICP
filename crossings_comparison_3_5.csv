@@ -1,0 +1,13 @@
+Class,Dataset,Num_Signals,Signals_with_6_crossings,%_Signals_with_6_crossings,Signals_with_6_crossings_and_ideal_P1P3,%_Signals_with_6_crossings_and_ideal_P1P3,min_distance
+Class1,it1,300,300,100.0,131,43.666666666666664,3
+Class1,it1_smooth_3Hz,300,298,99.33333333333333,170,56.666666666666664,3
+Class1,it1_smooth_4Hz,300,300,100.0,264,88.0,3
+Class2,it1,300,300,100.0,191,63.666666666666664,3
+Class2,it1_smooth_3Hz,300,293,97.66666666666667,160,53.333333333333336,3
+Class2,it1_smooth_4Hz,300,300,100.0,261,87.0,3
+Class3,it1,300,300,100.0,181,60.333333333333336,3
+Class3,it1_smooth_3Hz,300,277,92.33333333333333,154,51.333333333333336,3
+Class3,it1_smooth_4Hz,300,300,100.0,257,85.66666666666667,3
+Class4,it1,100,100,100.0,0,0.0,3
+Class4,it1_smooth_3Hz,100,24,24.0,0,0.0,3
+Class4,it1_smooth_4Hz,100,68,68.0,0,0.0,3

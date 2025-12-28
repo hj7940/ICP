@@ -147,8 +147,10 @@ def compute_crossings(dataset, window_fast=2, window_slow=4,
 
 
 def compute_ranges_avg(dataset):
-    r_c1_c3 = compute_crossings(dataset, min_distance=8)
-    r_c2_c4 = compute_crossings(dataset, min_distance=12)
+    r_c1_c3 = compute_crossings(dataset, 
+                                min_distance=0) #8
+    r_c2_c4 = compute_crossings(dataset, 
+                                min_distance=0)#12
 
     merged = {}
     for class_id in ("Class1", "Class3"):

@@ -14,10 +14,12 @@ from ranges import (ranges_full, ranges_pm3, ranges_whiskers,
                     generate_ranges_for_all_files, compute_ranges_avg, compute_crossings)
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
                        plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison,
-                       plot_all_signals_with_peaks, plot_two_signals_with_peaks_crossings)
+                       plot_all_signals_with_peaks, plot_two_signals_with_peaks_crossings,
+                       plot_two_signals_with_crossings_binary)
 
 import time as tme
 import matplotlib.pyplot as plt
+import glob
 
 # sprawdzone i dzialajace: import zakresow z ranges, load_dataset i smooth_dataset
 # generowanie zakresow zgodnych w strukturze z crossingami
@@ -324,13 +326,15 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                         df_metrics = compute_peak_metrics(detection_results, peak_name, class_name)
                         # dodajemy info o metodzie
                         df_metrics["Method"] = method_name
+                        df_metrics["Dataset"] = dataset_name
+                        df_metrics["Range"] = range_name
                         all_metrics.append(df_metrics) 
                         
                 df_all_metrics = pd.concat(all_metrics, ignore_index=True)
                 # df_avg_metrics = df_all_metrics.groupby(["Class", "Peak", "Method"]).mean(numeric_only=True).reset_index()
                 df_avg_metrics = (
                     df_all_metrics
-                    .groupby(["Class", "Peak", "Method"])
+                    .groupby(["Class", "Peak", "Method", "Range", "Dataset"])
                     .agg({
                         "Mean_X_Error": "mean",
                         "Mean_Y_Error": "mean",
@@ -359,8 +363,9 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
             # concave_tuned 
             # ===============================
             if tuned_params is not None:
-                method_name = "concave_tuned"
-
+                continue
+                #method_name = "concave_tuned"
+                """
                 all_metrics_file = os.path.join(
                     folder_wyniki, f"{method_name}_all_metrics.csv"
                 )
@@ -392,6 +397,9 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                             detection_results, peak_name, class_name
                         )
                         df["Method"] = method_name
+                        df_metrics["Method"] = method_name
+                        df_metrics["Dataset"] = dataset_name
+                        df_metrics["Range"] = range_name
                         all_metrics.append(df)
 
                 df_all_metrics = pd.concat(all_metrics, ignore_index=True)
@@ -403,7 +411,7 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                 # )
                 df_avg_metrics = (
                     df_all_metrics
-                    .groupby(["Class", "Peak", "Method"])
+                    .groupby(["Class", "Peak", "Method", "Range", "Dataset"])
                     .agg({
                         "Mean_X_Error": "mean",
                         "Mean_Y_Error": "mean",
@@ -427,6 +435,7 @@ def process_all_datasets(datasets, df_ranges_time, df_ranges_amps,
                 all_results[config_key][method_name] = (
                     df_all_metrics, df_avg_metrics
                 )
+                """
         
     return all_results
 
@@ -557,6 +566,49 @@ def analyze_avg_crossings(dataset, dataset_name):
     df = df.sort_values(["Class_order", "Dataset_order"]).drop(["Class_order","Dataset_order"], axis=1)
     return df
 
+def filter_df(df, methods=None, classes=None, ranges=None, datasets=None, peaks=None):
+    """
+    Zwraca podzbiór df na podstawie wybranych kryteriów.
+    Każdy argument może być pojedynczą wartością (str) lub listą wartości.
+    
+    Parametry:
+    - methods: str lub lista str (np. ["line_distance_3", "line_perpendicular_3"])
+    - classes: str lub lista str (np. ["Class1", "Class2"])
+    - ranges: str lub lista str
+    - datasets: str lub lista str
+    - peaks: str lub lista str (np. ["P1", "P2"])
+    """
+    df_filtered = df.copy()
+    
+    if methods is not None:
+        if isinstance(methods, str):
+            methods = [methods]
+        df_filtered = df_filtered[df_filtered["Method"].isin(methods)]
+    
+    if classes is not None:
+        if isinstance(classes, str):
+            classes = [classes]
+        df_filtered = df_filtered[df_filtered["Class"].isin(classes)]
+    
+    if ranges is not None:
+        if isinstance(ranges, str):
+            ranges = [ranges]
+        df_filtered = df_filtered[df_filtered["Range"].isin(ranges)]
+    
+    if datasets is not None:
+        if isinstance(datasets, str):
+            datasets = [datasets]
+        df_filtered = df_filtered[df_filtered["Dataset"].isin(datasets)]
+    
+    if peaks is not None:
+        if isinstance(peaks, str):
+            peaks = [peaks]
+        df_filtered = df_filtered[df_filtered["Peak"].isin(peaks)]
+    
+    return df_filtered
+
+
+
 # %%  lista metod 
 all_methods = {
     "concave": lambda sig: concave(sig, d2x_threshold=0, min_len=3, height=0, prominence=0),
@@ -589,9 +641,9 @@ datasets = [
     (it1, "it1"),
     (it1_smooth_4Hz, "it1_smooth_4Hz"),
     (it1_smooth_3Hz, "it1_smooth_3Hz"),
-    (it2, "it2"),
-    (it2_smooth_4Hz, "it2_smooth_4Hz"),
-    (it2_smooth_3Hz, "it2_smooth_3Hz"),
+    # (it2, "it2"),
+    # (it2_smooth_4Hz, "it2_smooth_4Hz"),
+    # (it2_smooth_3Hz, "it2_smooth_3Hz"),
 ]
 
 # %% ujednolicenie struktury zakresow dla time i amps oraz policzenie 
@@ -639,10 +691,10 @@ tuned_params = pd.read_csv("tuned_params.csv")
 # %% liczenie pikow
 if __name__ == "__main__":
     
-    wyniki_base = "wyniki_final_poprawne_bledy_same4Hz"
+    wyniki_base = "wyniki_final_final_final_poprawne_bledy_same4Hz_0_0"
     os.makedirs(wyniki_base, exist_ok=True)
 
-    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
 
     # det = peak_detection(
     # dataset=it1,          # albo it1_smooth_3Hz
@@ -656,12 +708,17 @@ if __name__ == "__main__":
     # plot_all_signals_with_peaks(det, "curvature", "none")
     # plt.savefig("rysunki/bez_zakresow_curvature.pdf", format="pdf", bbox_inches=None)
     
-    plot_two_signals_with_peaks_crossings(
-    dataset=it1,
-    filenames=("Class2_example_0042", "Class2_example_0046")
-    )   
-    plt.savefig("rysunki/crossings_porown.pdf", format="pdf", bbox_inches=None)
+    # plot_two_signals_with_peaks_crossings(
+    # dataset=it1,
+    # filenames=("Class2_example_0042", "Class2_example_0046")
+    # )   
+    # plt.savefig("rysunki/crossings_porown.pdf", format="pdf", bbox_inches=None)
     
+    # plot_two_signals_with_crossings_binary(
+    # dataset=it1,
+    # filenames=("Class2_example_0042", "Class2_example_0046")
+    # )   
+    # plt.savefig("crossings_2_sygnaly.pdf", format="pdf", bbox_inches=None)
     
     # df_it1 = analyze_avg_crossings(it1, "it1")
     # df_it1_3Hz = analyze_avg_crossings(it1_smooth_3Hz, "it1_smooth_3Hz")
@@ -687,10 +744,12 @@ if __name__ == "__main__":
     # # Opcjonalnie: Ustawienie MultiIndex dla lepszej wizualizacji "schodkowej" w Pythonie
     # # Dzięki temu nazwa klasy wyświetli się tylko raz dla całej grupy
     # df_styled = df_avg_comparison.set_index(["Class", "Dataset"])
-    
+    # df_avg_comparison["min_distance"] = 0
     # # Zapis do pliku
-    # df_avg_comparison.to_csv("avg_crossings_comparison_it1_vs_smooth.csv", index=False)
+    # df_avg_comparison.to_csv("crossings_comparison_0_0.csv", index=False)
     
+    
+       
 # %% --------- wyglad sygnalu przed vs po filtracji ---------------------------
     
     # dataset_list = [it1, it1_smooth_4Hz,  it1_smooth_3Hz,]
@@ -1098,32 +1157,195 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    # it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    # dfs_avg = []
-    # for config_name, method_dict in it1_results.items():
-    #     for method_name, (df_all, df_avg) in method_dict.items():
-    #         df = df_avg.copy()
-    #         df["Config"] = f"{config_name}_{method_name}"
-    #         dfs_avg.append(df)
-    # df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    dfs_avg = []
+    for config_name, method_dict in it1_results.items():
+        for method_name, (df_all, df_avg) in method_dict.items():
+            df = df_avg.copy()
+            df["Config"] = f"{config_name}_{method_name}"
+            df["Method"] = f"{method_name}"
+            dfs_avg.append(df)
+    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+    
+    # ------- ANALIZA METOD – IT1 ----------------
+    error_summary = (
+    df_it1_avg
+    .groupby("Config")
+    .agg(
+        median_error=("Mean_XY_Error", "median"),
+        mean_error=("Mean_XY_Error", "mean")
+    )
+    .sort_values("median_error")
+    )
+    
+    tp_summary = (
+    df_it1_avg
+    .groupby("Config")
+    .agg(
+        mean_TP=("TP", "mean")
+    )
+    .sort_values("mean_TP", ascending=False)
+)
+    per_class = (
+    df_it1_avg
+    .groupby(["Config", "Class"])
+    .agg(
+        median_error=("Mean_XY_Error", "median"),
+        mean_TP=("TP", "mean")
+    )
+)
+    # ---------- WYKRESIOR ---------
+    df = df_it1_avg.copy()
+    df.loc[df["Class"] == "Class4", "TP"] *= 3
+    # unikalne wartości dla ustawień
+    methods = df["Method"].unique()
+    ranges = df["Range"].unique()
+    filters = df["Dataset"].unique()
+    
+
+    
+    # kolory dla metod
+    # colors = plt.cm.tab10_r.colors  # paleta 10 kolorów
+    # method_color = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(methods)))
+    method_color = {method: colors[i] for i, method in enumerate(methods)}
+    
+
+    # markery dla zakresów
+    marker_styles = ['o', '*', '^', 'D', 'v', 'P', 's', 'X']
+    range_marker = {rng: marker_styles[i % len(marker_styles)] for i, rng in enumerate(ranges)}
+    
+    # normalizacja przezroczystości dla filtracji
+    alpha_map = {filt: 0.3 + 0.7*i/(len(filters)-1) if len(filters) > 1 else 1.0
+                 for i, filt in enumerate(filters)}
+    
+    fig, ax = plt.subplots(figsize=(8,6))
+    # wybor jednej metody/zakresy/whatever
+    df_plot = filter_df(
+        df,
+        # methods=["curvature"],
+        # classes=["Class1"],
+        # peaks=["P3"]
+        # ranges=["none"]
+    )
+    
+    # zostawiamy wszystkie wiersze, które nie są Range=="none" dla klas 1-3
+    # df_plot = df_plot[~((df_plot["Range"] == "none") & (df_plot["Class"].isin(["Class1", "Class2", "Class3"])))]
+    # # oprocz avg dla klasy 4!
+    # df_plot = df_plot[~((df_plot["Range"] == "avg") & (df_plot["Class"].isin(["Class4"])))]
+
+
+    # rysowanie punktów
+    for _, row in df_plot.iterrows():
+        ax.scatter(
+            row["Mean_XY_Error"],
+            row["TP"],
+            color=method_color[row["Method"]],
+            marker=range_marker[row["Range"]],
+            alpha=alpha_map[row["Dataset"]],
+            s=30,
+            edgecolor='k',
+            linewidth=0.6
+        )
+        
+        # ax.text(
+        #     row["Mean_XY_Error"] + 0.002,  # lekko przesunięte w prawo, żeby nie nachodziło
+        #     row["TP"] + 0.002,             # lekko w górę
+        #     # f"{row['Class']}, {row['Peak']}",
+        #     f"{row['Peak']}",
+        #     rotation=40,
+        #     fontsize=6
+        # )
+    
+        
+    # df_no = df_plot[df_plot["Dataset"] == "it1"]
+    # ax.scatter(
+    #     df_no["Mean_XY_Error"],
+    #     df_no["TP"],
+    #     facecolors='none',           # tylko kontur
+    #     edgecolors='aqua',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    #     s=120,                       # większy rozmiar, żeby była otoczka
+    #     linewidth=2.4,
+    #     zorder=5                     # żeby była nad innymi punktami
+    # )
+    
+    # df_none = df_plot[df_plot["Dataset"] == "it1_smooth_3Hz"]
+    # ax.scatter(
+    #     df_none["Mean_XY_Error"],
+    #     df_none["TP"],
+    #     facecolors='none',           # tylko kontur
+    #     edgecolors='chartreuse',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    #     s=120,                       # większy rozmiar, żeby była otoczka
+    #     linewidth=2.4,
+    #     zorder=5                     # żeby była nad innymi punktami
+    # )
     
     
+    # df_full = df_plot[df_plot["Dataset"] == "it1_smooth_4Hz"]
+    # ax.scatter(
+    #     df_full["Mean_XY_Error"],
+    #     df_full["TP"],
+    #     facecolors='none',           # tylko kontur
+    #     edgecolors='fuchsia',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    #     s=110,                       # większy rozmiar, żeby była otoczka
+    #     linewidth=2,
+    #     zorder=5                     # żeby była nad innymi punktami
+    # )
+    
+    # legendy
+    used_methods = df_plot["Method"].unique()
+    for method, color in method_color.items():
+        if method in used_methods:
+            ax.scatter([], [], color=color, label=method, s=80)
+    # legenda marker = zakres
+    for rng, marker in range_marker.items():
+        ax.scatter([], [], color='gray', marker=marker, label=rng, s=80)
+    for filt, alpha in alpha_map.items():
+        ax.scatter([], [], color='black', alpha=alpha, label=f"{filt}", s=80)
+    # legenda dla neonowych otoczek
+    
+    # ax.scatter([], [], facecolors='none', edgecolors='aqua', s=120, linewidth=2.4, label='it1')
+    # ax.scatter([], [], facecolors='none', edgecolors='chartreuse', s=120, linewidth=2.4, label='it1_smooth_3Hz')
+    # ax.scatter([], [], facecolors='none', edgecolors='fuchsia', s=110, linewidth=2, label='it1_smooth_4Hz')
+
+    ax.set_ylim(-5, 305)
+    # ograniczenie wycinka
+
+    ax.set_xlabel("Średni błąd lokalizacji piku")
+    ax.set_ylabel("TP")
+    # ax.set_title("Porównanie kombinacji metod detekcji pików")
+    ax.grid(True, alpha=0.3)
+    ax.legend(title="Legenda\n(Kolor=Metoda Marker=Zakres,\nPrzezroczystość=Filtracja)", 
+              fontsize=8, title_fontsize=8,
+              bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.savefig("rysunki/conf.pdf", format="pdf", bbox_inches=None)
+    plt.show()
+
+    
+    # ---------- NAJLEPSZE -----------------
     # peaks = ["P1","P2","P3"]
-    # # classes = ["Class1","Class2","Class3","Class4"]
-    # classes = ["Class1"]
+    # classes = ["Class1","Class2","Class3","Class4"]
+    # # classes = ["Class1"]
     
     # top_xy_dfs = {}
     # top_minxy_dfs = {}
     
     # min_fraction = 0.80
     # min_TP_per_class = {   #zmiana
-    #     "Class1": 230,
-    #     "Class2": 230,
-    #     "Class3": 255,
+    #     "Class1": 250,
+    #     "Class2": 250,
+    #     "Class3": 250,
     #     "Class4": 85,
     # }
-    # # max_XY_Error = 30
+
+    # max_XY_Error = {   #zmiana
+    #     "P1": 3,
+    #     "P2": 9,
+    #     "P3": 10,
+    # }
     
     # # Tworzenie osobnych DF-ów
     # for class_id in classes:
@@ -1133,8 +1355,8 @@ if __name__ == "__main__":
     #             (df_it1_avg["Peak"] == pk) &
     #             (df_it1_avg["Class"] == class_id) &
     #             (df_it1_avg["%_Signals_with_Peak"] >= min_fraction) &
-    #             (df_it1_avg["TP"] >= min_TP_per_class[class_id])
-    #             #(df_it1_avg["Mean_XY_Error"] <= max_XY_Error) &
+    #             (df_it1_avg["TP"] >= min_TP_per_class[class_id]) &
+    #             (df_it1_avg["Mean_XY_Error"] <= max_XY_Error[pk])
     #             #(df_it1_avg["Peak_Count"] <= 10)
     #         ].copy()
             
@@ -1155,7 +1377,7 @@ if __name__ == "__main__":
     # cols_to_keep = [c for c in df_it1_avg.columns if c not in ["Method", "Mean_X_Error", "Mean_Y_Error"]]
     
     # df_top_xy_all = pd.concat(top_xy_dfs.values(), ignore_index=True)
-    # df_top_xy_all[cols_to_keep].to_csv("25_12_same_Class1P2.csv", sep=' ', index=False)
+    # df_top_xy_all[cols_to_keep].to_csv("27_12_same_2.csv", sep=' ', index=False)
     
     # df_top_minxy_all = pd.concat(top_minxy_dfs.values(), ignore_index=True)
     # df_top_minxy_all[cols_to_keep].to_csv("top_min_xy_it1_90_same_avg.csv", sep=' ', index=False)

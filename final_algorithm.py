@@ -36,6 +36,7 @@ import math
 import os
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from scipy.stats import wilcoxon
 from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   it1, it1_smooth_4Hz, it1_smooth_3Hz,
                   ranges_all_time, ranges_all_amps)
@@ -673,6 +674,87 @@ def compute_metrics_postproc(dataset, class_name):
     return pd.DataFrame(metrics_list)
 
 
+# =========================
+# 1. Funkcja do obliczania błędów XY dla pojedynczego piku
+# =========================
+def compute_dxy_per_peak(results_combined, expected_peaks=("P1","P2","P3")):
+    """
+    Zwraca DataFrame z błędami XY dla każdego pliku i piku.
+    
+    results_combined: lista słowników po postprocess
+    expected_peaks: tuple oczekiwanych pików
+    """
+    records = []
+    for item in results_combined:
+        file_name = item["file"]
+        sig = item["signal_raw"]
+        t = sig.iloc[:,0].values
+        y = sig.iloc[:,1].values
+        for peak in expected_peaks:
+            ref_idx = item["peaks_ref"].get(peak)
+            detected_val = item["peaks_detected"].get(peak)
+            
+            # obsługa braków
+            if ref_idx is None or detected_val is None or (isinstance(detected_val,float) and np.isnan(detected_val)):
+                dxy = np.nan
+            else:
+                dx = abs(t[detected_val] - t[ref_idx])
+                dy = abs(y[detected_val] - y[ref_idx])
+                dxy = np.sqrt(dx**2 + dy**2)
+            
+            records.append({
+                "file": file_name,
+                "peak": peak,
+                "dxy": dxy
+            })
+    return pd.DataFrame(records)
+
+# =========================
+# 2. Funkcja do łączenia dwóch wariantów w pary
+# =========================
+def merge_dxy_for_wilcoxon(df1, df2):
+    """
+    Łączy błędy z dwóch wariantów wg pliku i piku, gotowe do testu Wilcoxona.
+    df1, df2: DataFrame z kolumnami ['file','peak','dxy']
+    """
+    merged = pd.merge(df1, df2, on=["file","peak"], suffixes=("_new","_new_simpl"))
+    # usuwa wiersze z nan w którymkolwiek wariancie
+    merged = merged.dropna(subset=["dxy_new","dxy_new_simpl"])
+    return merged
+
+# =========================
+# 3. Funkcja do wykonania testu Wilcoxona dla wszystkich pików
+# =========================
+def wilcoxon_test_all_peaks(merged_df):
+    """
+    merged_df: DataFrame z kolumnami ['file','peak','dxy_new','dxy_new_simpl']
+    Zwraca DataFrame z wynikami testu dla każdego piku.
+    """
+    results = []
+    for peak in merged_df["peak"].unique():
+        sub = merged_df[merged_df["peak"]==peak]
+        if len(sub) < 5:  # zbyt mało danych
+            p_value = np.nan
+            stat = np.nan
+        else:
+            stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"])
+        results.append({
+            "peak": peak,
+            "n_pairs": len(sub),
+            "wilcoxon_stat": stat,
+            "p_value": p_value
+        })
+    return pd.DataFrame(results)
+
+# =========================
+# 4. Kompletny pipeline
+# =========================
+def run_wilcoxon_pipeline(results_new_pp, results_new_s_pp, expected_peaks=("P1","P2","P3")):
+    df_new = compute_dxy_per_peak(results_new_pp, expected_peaks)
+    df_simpl = compute_dxy_per_peak(results_new_s_pp, expected_peaks)
+    merged = merge_dxy_for_wilcoxon(df_new, df_simpl)
+    wilcoxon_results = wilcoxon_test_all_peaks(merged)
+    return wilcoxon_results
 
 
 """
@@ -826,17 +908,17 @@ df_new = pd.DataFrame([
     # -------- Class1 --------
     ("Class1", "P1", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
     ("Class1", "P2", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg",  "line_distance_3"),
-    ("Class1", "P3", "it2_smooth_4Hz", "it2_smooth_4Hz", "full", "concave"), # lub 0,002
+    ("Class1", "P3", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
 
     # -------- Class2 --------
     ("Class2", "P1", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "whiskers", "hilbert"), # full hilbert tez ok
+    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "avg", "concave"), # full hilbert tez ok
     ("Class2", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class3 --------
     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg", "wavelet"),
     ("Class3", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
+    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "avg", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class4 --------
     ("Class4", "P2", "it2", "it2_smooth_4Hz", "full", "concave_d2x=0-002"),
@@ -854,11 +936,11 @@ df_new_simplified = pd.DataFrame([
     # -------- Class1 --------
     ("Class1", "P1", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
     ("Class1", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class1", "P3", "it2",            "it2_smooth_4Hz", "full", "concave"), # lub 0,002
+    ("Class1", "P3", "it2",            "it2_smooth_4Hz", "avg", "concave"), # lub 0,002
 
     # -------- Class2 --------
     ("Class2", "P1", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # full hilbert tez ok
+    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "full", "concave"), # full hilbert tez ok
     ("Class2", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class3 --------
@@ -885,7 +967,7 @@ datasets_dict = {
 }
 
 
-out_dir = "rysunki"
+out_dir = "rysunki_upset_nowe"
 # %% ================= DRUGI ZESTAW (IT2) ====================
 # results_a_it2 = run_variant(
 #     df_variant_a,
@@ -949,16 +1031,22 @@ df_pogladowe_new_pp = pd.DataFrame([
     }
     for d in results_combined_new_pp])
 
+
 classes = ["Class1", "Class2", "Class3", "Class4"]
 
-# df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
-# df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
-# df_metrics_pre.to_csv("25_12_metrics_pre.csv", index=False)
-# df_metrics_post.to_csv("25_12_metrics_post.csv", index=False)
+# for cls in classes:
+#     plot_files_in_class(results_combined_new_pp, cls)
 
+df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
+df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
+df_metrics_pre.to_csv("27_12_metrics_pre.csv", index=False)
+df_metrics_post.to_csv("27_12_metrics_post.csv", index=False)
+
+
+"""
 classes = ["Class1", "Class2", "Class3",]
 for class_id in classes:
-    # plot_upset_classic_postproc(results_combined_new, class_id)
+    # plot_upset_classic_postproc_new(results_combined_new, class_id)
     plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
     plt.savefig(
         os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
@@ -972,6 +1060,8 @@ plt.savefig(
     format="pdf",
     bbox_inches="tight"
 )
+"""
+
 results_new_simpl = run_variant(
     df_new_simplified,
     datasets_dict=datasets_dict,
@@ -997,16 +1087,22 @@ df_pogladowe_new_s_pp = pd.DataFrame([
     }
     for d in results_combined_new_s_pp])
 
-# classes = ["Class1", "Class2", "Class3", "Class4"]
-
-# df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
-# df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
-# df_metrics_pre.to_csv("25_12_metrics_pre_simpl.csv", index=False)
-# df_metrics_post.to_csv("25_12_metrics_post_simpl.csv", index=False)
-
+classes = ["Class1", "Class2", "Class3", "Class4"]
 # for cls in classes:
 #     plot_files_in_class(results_combined_new_s_pp, cls)
 
+df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
+df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
+df_metrics_pre.to_csv("27_12_metrics_pre_simpl.csv", index=False)
+df_metrics_post.to_csv("27_12_metrics_post_simpl.csv", index=False)
+
+expected_peaks = ["P1","P2","P3"]
+wilcoxon_results = run_wilcoxon_pipeline(results_combined_new_pp, results_combined_new_s_pp, expected_peaks)
+print(wilcoxon_results)
+
+# for cls in classes:
+#     plot_files_in_class(results_combined_new_s_pp, cls)
+"""
 classes = ["Class1", "Class2", "Class3"]
 for class_id in classes:
     # plot_upset_classic_postproc(results_combined_new_s, class_id)
@@ -1023,7 +1119,7 @@ plt.savefig(
     format="pdf",
     bbox_inches="tight"
 )
-
+"""
 
 # # wariant a
 # df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
