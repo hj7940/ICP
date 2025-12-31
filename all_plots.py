@@ -1087,7 +1087,7 @@ def plot_filt_comparison(dataset_list, file_names, dataset_labels=None, colors_s
             t = sig.iloc[:, 0].values
             y = sig.iloc[:, 1].values
             
-            ax.plot(t, y, color=colors_signal, linewidth=1.5)
+            ax.plot(t, y, color=colors_signal, linewidth=1.2)
             
             # Piki referencyjne tylko w pierwszej kolumnie
             if j == 0:
@@ -1116,7 +1116,7 @@ def plot_filt_comparison(dataset_list, file_names, dataset_labels=None, colors_s
                 ax.legend(fontsize=10, loc="upper right")
     
     plt.tight_layout()
-    plt.savefig("rysunki/filtracja.pdf", format="pdf", bbox_inches=None)
+    plt.savefig("rysunki/filtracja2.pdf", format="pdf", bbox_inches=None)
     plt.show()
     
 def is_true_positive(item, peak, tolerance=3):
@@ -1327,7 +1327,7 @@ def plot_two_signals_with_peaks_crossings(
     filenames=("Class2_example_0042", "Class2_example_0046"),
     # colors=("lightblue", "lightseagreen"),
     window_fast=2,
-    window_slow=9
+    window_slow=12
 ):
     # crossingi
     crossings = compute_crossings(dataset)
@@ -1404,7 +1404,7 @@ def plot_two_signals_with_crossings_binary(
     dataset,
     filenames=("Class2_example_0042", "Class2_example_0046"),
     window_fast=2,
-    window_slow=4,
+    window_slow=4, # 4!!!!!!!!
     y_scale=0.9  # wartość sygnału prostokątnego
 ):
     """
@@ -1617,6 +1617,230 @@ def plot_column_crossing():
     plt.tight_layout(rect=[0, 0, 0.9, 1]) # Zostawienie miejsca po prawej na legendę
     plt.savefig("rysunki/crossings_min_len.pdf", format="pdf", bbox_inches=None)
     plt.show()
+    
+    
+
+from scipy.signal import find_peaks, peak_prominences
+
+
+def plot_threshold_prominence(
+    dataset,
+    idx=0,
+    threshold_val=0.08,
+    prominence_val=0.08,
+    threshold_x_offset=12,
+    prominence_x_offset=7
+):
+    """
+    Schematyczna ilustracja threshold i prominence
+    dla pików referencyjnych P1, P2, P3.
+    """
+
+    item = dataset[idx]
+    sig = item["signal"]
+    peaks_ref = item["peaks_ref"]
+
+    x = sig["Sample_no"].values
+    y = sig["ICP"].values
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(x, y, color="black", lw=1.2)
+    
+        # 1. Wyliczamy prominence dla WSZYSTKICH punktów, które są lokalnymi maksimami
+    # Musimy podać listę indeksów naszych pików referencyjnych (P1, P2, P3)
+    peak_indices = [p for p in peaks_ref.values() if p is not None]
+    
+    # peak_prominences zwraca: (prominences, left_bases, right_bases)
+    all_proms, left_bases, right_bases = peak_prominences(y, peak_indices)
+
+    # Mapujemy wyniki z powrotem do nazw pików
+    prom_results = dict(zip(peaks_ref.keys(), zip(all_proms, left_bases, right_bases)))
+
+
+    colors = {
+        "P1": "black",
+        "P2": "black",
+        "P3": "black"
+    }
+
+    for name, p in peaks_ref.items():
+        if p is None:
+            continue
+
+        # Pobieramy wyniki z SciPy dla konkretnego piku
+        prom, left_base, right_base = prom_results[name]
+        
+        # Poziom bazowy (contour line) to y najniższego punktu w wyznaczonym przedziale
+        # SciPy wyznacza go jako wyższy z dwóch lokalnych minimów (left/right base)
+        base_level = y[p] - prom
+        
+        # --- RYSOWANIE PROMINENCE ---
+        x_prom = x[p] + prominence_x_offset
+        
+        # Linia konturowa (od lewej do prawej bazy wyznaczonej przez SciPy)
+        ax.hlines(
+            base_level,
+            x_prom-22,
+            x_prom+22,
+            linestyles="dashed", colors="lightseagreen",
+            alpha=0.5
+        )
+        
+        ax.hlines(
+            y[p],
+            x[p],
+            x_prom,
+            linestyles="dashdot", colors="lightseagreen",
+            alpha=0.7
+        )
+        
+        ax.annotate(
+            "",
+            xy=(x_prom, y[p]),
+            xytext=(x_prom, base_level),
+            arrowprops=dict(arrowstyle="<->", 
+                            lw=1.2, 
+                            color="lightseagreen")
+        )
+
+        # --- THRESHOLD (przesuniety w bok) ---
+        
+        thr_left = y[p] - y[p - 1]
+        thr_right = y[p] - y[p + 1]
+        threshold_real = min(thr_left, thr_right) + 0.07
+        
+        x_thr = x[p] + threshold_x_offset
+        # linie przerywane pokazujące zakres threshold
+        ax.hlines(
+            [y[p], y[p] - threshold_real],
+            x[p],
+            x_thr,
+            linestyles="dotted",
+            colors="mediumpurple",
+            alpha=0.8
+        )
+
+        ax.annotate(
+            "",
+            xy=(x_thr, y[p]),
+            xytext=(x_thr, y[p] - threshold_real),
+            arrowprops=dict(
+                arrowstyle="<->",
+                lw=1.2,
+                color="purple"
+            )
+        )
+        
+        height_val = y[p]
+        ax.annotate(
+            "",
+            xy=(x[p], y[p]),
+            xytext=(x[p], 0),
+            arrowprops=dict(arrowstyle="<->", 
+                            lw=1.2, color="dimgray")
+        )
+
+        # punkt piku
+        ax.scatter(x[p], y[p], color="black", zorder=5)
+
+        # etykieta P1/P2/P3
+        ax.text(
+            x[p],
+            y[p] + 0.02,
+            name,
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            # fontweight="bold",
+            color=colors.get(name, "black")
+        )
+        
+        # 4. ETYKIETY TEKSTOWE (tylko dla P1)
+        if name == "P1":
+            ax.text(x_prom + 3, (y[p] + base_level)/2, "prominence", color="lightseagreen", va="center", fontsize=11, zorder=10)
+            ax.text(x_thr + 3, (y[p] + (y[p]-threshold_real))/2, "threshold", color="purple", va="center", fontsize=11)
+            ax.text(x[p] - 7, height_val/2+0.25, "height", color="dimgray", ha="right", va="center", fontsize=11)
+
+    # ax.set_title(
+    #     "Schematyczna ilustracja parametrów threshold i prominence "
+    #     "dla pików referencyjnych P1–P3",
+    #     pad=10
+    # )
+
+    ax.set_xlabel("Numer próbki")
+    ax.set_ylabel("Amplituda [-]")
+
+    # styl dokumentacyjny
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_xlim(0, 180)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    # plt.show()
+
+
+def plot_concave_threshold_comparison(dataset, filename):
+    # 1. Pobieranie danych
+    item = next((d for d in dataset if d["file"] == filename), None)
+    if item is None: return
+    
+    sig_df = item["signal"]
+    t = sig_df.iloc[:, 0].values
+    y = sig_df.iloc[:, 1].values
+
+    # 2. Obliczanie 2. pochodnej
+    dy = np.gradient(y, edge_order=2)
+    d2y = np.gradient(dy, edge_order=2)
+
+    # 3. Definicje progów
+    thresholds = [0, -0.002, 0.002]
+    labels = [
+        "Wariant bazowy, $f'' < 0$",
+        "$f'' < -0.002$",
+        "$f'' < 0.002$"
+    ]
+    colors = ['teal', 'darkcyan', 'cadetblue']
+
+    fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True, sharey=True)
+
+    def get_regions(mask):
+        mask_diff = np.diff(mask.astype(int))
+        starts = np.where(mask_diff == 1)[0] + 1
+        ends = np.where(mask_diff == -1)[0]
+        if mask[0]: starts = np.insert(starts, 0, 0)
+        if mask[-1]: ends = np.append(ends, len(mask)-1)
+        return list(zip(starts, ends))
+
+    for i, th in enumerate(thresholds):
+        ax = axs[i]
+        mask = d2y < th
+        regions = get_regions(mask)
+        
+        ax.plot(t, y, color='black', lw=1, alpha=0.8)
+        
+        for start, end in regions:
+            ax.axvspan(t[start], t[end], color=colors[i], alpha=0.3)
+            
+        ax.set_title(f"{labels[i]}", fontsize=16)
+        ax.set_ylabel("Amplituda [-]", fontsize=14)
+
+    axs[2].set_xlabel("Numer próbki", fontsize=14)
+    ax.set_xlim(0, 180)
+    ax.set_ylim(bottom=0)
+    plt.tight_layout()
+    # plt.show()
+
+# Wywołanie:
+# plot_concave_threshold_comparison(dataset, "twoj_plik.csv")
+
 
 if __name__ == "__main__":
+    
+
+
+
+
     print("bajo jajo")

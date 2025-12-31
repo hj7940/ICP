@@ -15,7 +15,8 @@ from ranges import (ranges_full, ranges_pm3, ranges_whiskers,
 from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals, 
                        plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison,
                        plot_all_signals_with_peaks, plot_two_signals_with_peaks_crossings,
-                       plot_two_signals_with_crossings_binary)
+                       plot_two_signals_with_crossings_binary,
+                       plot_threshold_prominence, plot_concave_threshold_comparison)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -641,9 +642,9 @@ datasets = [
     (it1, "it1"),
     (it1_smooth_4Hz, "it1_smooth_4Hz"),
     (it1_smooth_3Hz, "it1_smooth_3Hz"),
-    # (it2, "it2"),
-    # (it2_smooth_4Hz, "it2_smooth_4Hz"),
-    # (it2_smooth_3Hz, "it2_smooth_3Hz"),
+    (it2, "it2"),
+    (it2_smooth_4Hz, "it2_smooth_4Hz"),
+    (it2_smooth_3Hz, "it2_smooth_3Hz"),
 ]
 
 # %% ujednolicenie struktury zakresow dla time i amps oraz policzenie 
@@ -694,7 +695,11 @@ if __name__ == "__main__":
     wyniki_base = "wyniki_final_final_final_poprawne_bledy_same4Hz_0_0"
     os.makedirs(wyniki_base, exist_ok=True)
 
-    results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    # results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
+    
+    # plot_threshold_prominence(it1, 47)
+    # plt.savefig("rysunki/paremetry_find_peaks.pdf", 
+    #             format="pdf", bbox_inches=None)
 
     # det = peak_detection(
     # dataset=it1,          # albo it1_smooth_3Hz
@@ -749,11 +754,14 @@ if __name__ == "__main__":
     # df_avg_comparison.to_csv("crossings_comparison_0_0.csv", index=False)
     
     
+    plot_concave_threshold_comparison(it2, "Class3_it2_example_0113")
+    plt.savefig("rysunki/concave_threshold.pdf", format="pdf", bbox_inches=None)
+    
        
 # %% --------- wyglad sygnalu przed vs po filtracji ---------------------------
     
-    # dataset_list = [it1, it1_smooth_4Hz,  it1_smooth_3Hz,]
-    # file_names = ["Class1_example_0028", "Class1_example_0248"]
+    # dataset_list = [it2, it2_smooth_4Hz,  it2_smooth_3Hz]
+    # file_names = ["Class1_it2_example_0045", "Class1_it2_example_0031"]
     # dataset_labels = ["Sygnał nieprzefiltrowany", r"Po filtracji, $f_g$=4 Hz",  r"Po filtracji, $f_g$=3 Hz"]
     
     # plot_filt_comparison(dataset_list, file_names, dataset_labels)
@@ -1157,175 +1165,179 @@ if __name__ == "__main__":
     
     
 # -------- WYNIKI - kombinacje parametrow IT1 -----------------
-    it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
+
+#     it1_results = {k: v for k, v in results.items() if k.startswith("it1")}
     
-    dfs_avg = []
-    for config_name, method_dict in it1_results.items():
-        for method_name, (df_all, df_avg) in method_dict.items():
-            df = df_avg.copy()
-            df["Config"] = f"{config_name}_{method_name}"
-            df["Method"] = f"{method_name}"
-            dfs_avg.append(df)
-    df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
+#     dfs_avg = []
+#     for config_name, method_dict in it1_results.items():
+#         for method_name, (df_all, df_avg) in method_dict.items():
+#             df = df_avg.copy()
+#             df["Config"] = f"{config_name}_{method_name}"
+#             df["Method"] = f"{method_name}"
+#             dfs_avg.append(df)
+#     df_it1_avg = pd.concat(dfs_avg, ignore_index=True)
     
-    # ------- ANALIZA METOD – IT1 ----------------
-    error_summary = (
-    df_it1_avg
-    .groupby("Config")
-    .agg(
-        median_error=("Mean_XY_Error", "median"),
-        mean_error=("Mean_XY_Error", "mean")
-    )
-    .sort_values("median_error")
-    )
+#     # ------- ANALIZA METOD – IT1 ----------------
+#     error_summary = (
+#     df_it1_avg
+#     .groupby("Config")
+#     .agg(
+#         median_error=("Mean_XY_Error", "median"),
+#         mean_error=("Mean_XY_Error", "mean")
+#     )
+#     .sort_values("median_error")
+#     )
     
-    tp_summary = (
-    df_it1_avg
-    .groupby("Config")
-    .agg(
-        mean_TP=("TP", "mean")
-    )
-    .sort_values("mean_TP", ascending=False)
-)
-    per_class = (
-    df_it1_avg
-    .groupby(["Config", "Class"])
-    .agg(
-        median_error=("Mean_XY_Error", "median"),
-        mean_TP=("TP", "mean")
-    )
-)
-    # ---------- WYKRESIOR ---------
-    df = df_it1_avg.copy()
-    df.loc[df["Class"] == "Class4", "TP"] *= 3
-    # unikalne wartości dla ustawień
-    methods = df["Method"].unique()
-    ranges = df["Range"].unique()
-    filters = df["Dataset"].unique()
+#     tp_summary = (
+#     df_it1_avg
+#     .groupby("Config")
+#     .agg(
+#         mean_TP=("TP", "mean")
+#     )
+#     .sort_values("mean_TP", ascending=False)
+# )
+#     per_class = (
+#     df_it1_avg
+#     .groupby(["Config", "Class"])
+#     .agg(
+#         median_error=("Mean_XY_Error", "median"),
+#         mean_TP=("TP", "mean")
+#     )
+# )
+    
+    
+# ---------- WYKRESIOR ---------!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    # df = df_it1_avg.copy()
+    # df.loc[df["Class"] == "Class4", "TP"] *= 3
+    # # unikalne wartości dla ustawień
+    # methods = df["Method"].unique()
+    # ranges = df["Range"].unique()
+    # filters = df["Dataset"].unique()
     
 
     
-    # kolory dla metod
-    # colors = plt.cm.tab10_r.colors  # paleta 10 kolorów
-    # method_color = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
-    colors = plt.cm.rainbow(np.linspace(0, 1, len(methods)))
-    method_color = {method: colors[i] for i, method in enumerate(methods)}
+    # # kolory dla metod
+    # # colors = plt.cm.tab10_r.colors  # paleta 10 kolorów
+    # # method_color = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
+    # colors = plt.cm.rainbow(np.linspace(0, 1, len(methods)))
+    # method_color = {method: colors[i] for i, method in enumerate(methods)}
     
 
-    # markery dla zakresów
-    marker_styles = ['o', '*', '^', 'D', 'v', 'P', 's', 'X']
-    range_marker = {rng: marker_styles[i % len(marker_styles)] for i, rng in enumerate(ranges)}
+    # # markery dla zakresów
+    # marker_styles = ['o', '*', '^', 'D', 'v', 'P', 's', 'X']
+    # range_marker = {rng: marker_styles[i % len(marker_styles)] for i, rng in enumerate(ranges)}
     
-    # normalizacja przezroczystości dla filtracji
-    alpha_map = {filt: 0.3 + 0.7*i/(len(filters)-1) if len(filters) > 1 else 1.0
-                 for i, filt in enumerate(filters)}
+    # # normalizacja przezroczystości dla filtracji
+    # alpha_map = {filt: 0.3 + 0.7*i/(len(filters)-1) if len(filters) > 1 else 1.0
+    #              for i, filt in enumerate(filters)}
     
-    fig, ax = plt.subplots(figsize=(8,6))
-    # wybor jednej metody/zakresy/whatever
-    df_plot = filter_df(
-        df,
-        # methods=["curvature"],
-        # classes=["Class1"],
-        # peaks=["P3"]
-        # ranges=["none"]
-    )
+    # fig, ax = plt.subplots(figsize=(8,6))
+    # # wybor jednej metody/zakresy/whatever
+    # df_plot = filter_df(
+    #     df,
+    #     # methods=["curvature"],
+    #     # classes=["Class1"],
+    #     # peaks=["P3"]
+    #     # ranges=["none"]
+    # )
     
-    # zostawiamy wszystkie wiersze, które nie są Range=="none" dla klas 1-3
-    # df_plot = df_plot[~((df_plot["Range"] == "none") & (df_plot["Class"].isin(["Class1", "Class2", "Class3"])))]
-    # # oprocz avg dla klasy 4!
-    # df_plot = df_plot[~((df_plot["Range"] == "avg") & (df_plot["Class"].isin(["Class4"])))]
+    # # zostawiamy wszystkie wiersze, które nie są Range=="none" dla klas 1-3
+    # # df_plot = df_plot[~((df_plot["Range"] == "none") & (df_plot["Class"].isin(["Class1", "Class2", "Class3"])))]
+    # # # oprocz avg dla klasy 4!
+    # # df_plot = df_plot[~((df_plot["Range"] == "avg") & (df_plot["Class"].isin(["Class4"])))]
 
 
-    # rysowanie punktów
-    for _, row in df_plot.iterrows():
-        ax.scatter(
-            row["Mean_XY_Error"],
-            row["TP"],
-            color=method_color[row["Method"]],
-            marker=range_marker[row["Range"]],
-            alpha=alpha_map[row["Dataset"]],
-            s=30,
-            edgecolor='k',
-            linewidth=0.6
-        )
+    # # rysowanie punktów
+    # for _, row in df_plot.iterrows():
+    #     ax.scatter(
+    #         row["Mean_XY_Error"],
+    #         row["TP"],
+    #         color=method_color[row["Method"]],
+    #         marker=range_marker[row["Range"]],
+    #         alpha=alpha_map[row["Dataset"]],
+    #         s=30,
+    #         edgecolor='k',
+    #         linewidth=0.6
+    #     )
         
-        # ax.text(
-        #     row["Mean_XY_Error"] + 0.002,  # lekko przesunięte w prawo, żeby nie nachodziło
-        #     row["TP"] + 0.002,             # lekko w górę
-        #     # f"{row['Class']}, {row['Peak']}",
-        #     f"{row['Peak']}",
-        #     rotation=40,
-        #     fontsize=6
-        # )
+    #     # ax.text(
+    #     #     row["Mean_XY_Error"] + 0.002,  # lekko przesunięte w prawo, żeby nie nachodziło
+    #     #     row["TP"] + 0.002,             # lekko w górę
+    #     #     # f"{row['Class']}, {row['Peak']}",
+    #     #     f"{row['Peak']}",
+    #     #     rotation=40,
+    #     #     fontsize=6
+    #     # )
     
         
-    # df_no = df_plot[df_plot["Dataset"] == "it1"]
-    # ax.scatter(
-    #     df_no["Mean_XY_Error"],
-    #     df_no["TP"],
-    #     facecolors='none',           # tylko kontur
-    #     edgecolors='aqua',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
-    #     s=120,                       # większy rozmiar, żeby była otoczka
-    #     linewidth=2.4,
-    #     zorder=5                     # żeby była nad innymi punktami
-    # )
+    # # df_no = df_plot[df_plot["Dataset"] == "it1"]
+    # # ax.scatter(
+    # #     df_no["Mean_XY_Error"],
+    # #     df_no["TP"],
+    # #     facecolors='none',           # tylko kontur
+    # #     edgecolors='aqua',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    # #     s=120,                       # większy rozmiar, żeby była otoczka
+    # #     linewidth=2.4,
+    # #     zorder=5                     # żeby była nad innymi punktami
+    # # )
     
-    # df_none = df_plot[df_plot["Dataset"] == "it1_smooth_3Hz"]
-    # ax.scatter(
-    #     df_none["Mean_XY_Error"],
-    #     df_none["TP"],
-    #     facecolors='none',           # tylko kontur
-    #     edgecolors='chartreuse',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
-    #     s=120,                       # większy rozmiar, żeby była otoczka
-    #     linewidth=2.4,
-    #     zorder=5                     # żeby była nad innymi punktami
-    # )
+    # # df_none = df_plot[df_plot["Dataset"] == "it1_smooth_3Hz"]
+    # # ax.scatter(
+    # #     df_none["Mean_XY_Error"],
+    # #     df_none["TP"],
+    # #     facecolors='none',           # tylko kontur
+    # #     edgecolors='chartreuse',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    # #     s=120,                       # większy rozmiar, żeby była otoczka
+    # #     linewidth=2.4,
+    # #     zorder=5                     # żeby była nad innymi punktami
+    # # )
     
     
-    # df_full = df_plot[df_plot["Dataset"] == "it1_smooth_4Hz"]
-    # ax.scatter(
-    #     df_full["Mean_XY_Error"],
-    #     df_full["TP"],
-    #     facecolors='none',           # tylko kontur
-    #     edgecolors='fuchsia',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
-    #     s=110,                       # większy rozmiar, żeby była otoczka
-    #     linewidth=2,
-    #     zorder=5                     # żeby była nad innymi punktami
-    # )
+    # # df_full = df_plot[df_plot["Dataset"] == "it1_smooth_4Hz"]
+    # # ax.scatter(
+    # #     df_full["Mean_XY_Error"],
+    # #     df_full["TP"],
+    # #     facecolors='none',           # tylko kontur
+    # #     edgecolors='fuchsia',           # neonowa zieleń, możesz zmienić na np. 'cyan' lub 'magenta'
+    # #     s=110,                       # większy rozmiar, żeby była otoczka
+    # #     linewidth=2,
+    # #     zorder=5                     # żeby była nad innymi punktami
+    # # )
     
-    # legendy
-    used_methods = df_plot["Method"].unique()
-    for method, color in method_color.items():
-        if method in used_methods:
-            ax.scatter([], [], color=color, label=method, s=80)
-    # legenda marker = zakres
-    for rng, marker in range_marker.items():
-        ax.scatter([], [], color='gray', marker=marker, label=rng, s=80)
-    for filt, alpha in alpha_map.items():
-        ax.scatter([], [], color='black', alpha=alpha, label=f"{filt}", s=80)
-    # legenda dla neonowych otoczek
+    # # legendy
+    # used_methods = df_plot["Method"].unique()
+    # for method, color in method_color.items():
+    #     if method in used_methods:
+    #         ax.scatter([], [], color=color, label=method, s=80)
+    # # legenda marker = zakres
+    # for rng, marker in range_marker.items():
+    #     ax.scatter([], [], color='gray', marker=marker, label=rng, s=80)
+    # for filt, alpha in alpha_map.items():
+    #     ax.scatter([], [], color='black', alpha=alpha, label=f"{filt}", s=80)
+    # # legenda dla neonowych otoczek
     
-    # ax.scatter([], [], facecolors='none', edgecolors='aqua', s=120, linewidth=2.4, label='it1')
-    # ax.scatter([], [], facecolors='none', edgecolors='chartreuse', s=120, linewidth=2.4, label='it1_smooth_3Hz')
-    # ax.scatter([], [], facecolors='none', edgecolors='fuchsia', s=110, linewidth=2, label='it1_smooth_4Hz')
+    # # ax.scatter([], [], facecolors='none', edgecolors='aqua', s=120, linewidth=2.4, label='it1')
+    # # ax.scatter([], [], facecolors='none', edgecolors='chartreuse', s=120, linewidth=2.4, label='it1_smooth_3Hz')
+    # # ax.scatter([], [], facecolors='none', edgecolors='fuchsia', s=110, linewidth=2, label='it1_smooth_4Hz')
 
-    ax.set_ylim(-5, 305)
-    # ograniczenie wycinka
+    # ax.set_ylim(-5, 305)
+    # # ograniczenie wycinka
 
-    ax.set_xlabel("Średni błąd lokalizacji piku")
-    ax.set_ylabel("TP")
-    # ax.set_title("Porównanie kombinacji metod detekcji pików")
-    ax.grid(True, alpha=0.3)
-    ax.legend(title="Legenda\n(Kolor=Metoda Marker=Zakres,\nPrzezroczystość=Filtracja)", 
-              fontsize=8, title_fontsize=8,
-              bbox_to_anchor=(1.05, 1), loc='upper left')
+    # ax.set_xlabel("Średni błąd lokalizacji piku")
+    # ax.set_ylabel("TP")
+    # # ax.set_title("Porównanie kombinacji metod detekcji pików")
+    # ax.grid(True, alpha=0.3)
+    # ax.legend(title="Legenda\n(Kolor=Metoda Marker=Zakres,\nPrzezroczystość=Filtracja)", 
+    #           fontsize=8, title_fontsize=8,
+    #           bbox_to_anchor=(1.05, 1), loc='upper left')
     
-    plt.tight_layout()
-    plt.savefig("rysunki/conf.pdf", format="pdf", bbox_inches=None)
-    plt.show()
+    # plt.tight_layout()
+    # plt.savefig("rysunki/conf.pdf", format="pdf", bbox_inches=None)
+    # plt.show()
 
-    
-    # ---------- NAJLEPSZE -----------------
+
+# ---------- NAJLEPSZE -----------------
     # peaks = ["P1","P2","P3"]
     # classes = ["Class1","Class2","Class3","Class4"]
     # # classes = ["Class1"]
