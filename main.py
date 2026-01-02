@@ -16,7 +16,9 @@ from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals,
                        plot_all_signals_with_peaks_by_peak_type, plot_filt_comparison,
                        plot_all_signals_with_peaks, plot_two_signals_with_peaks_crossings,
                        plot_two_signals_with_crossings_binary,
-                       plot_threshold_prominence, plot_concave_threshold_comparison)
+                       plot_threshold_prominence, 
+                       plot_punkty_charakterystyczne,
+                       plot_concave_threshold_comparison)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -754,8 +756,10 @@ if __name__ == "__main__":
     # df_avg_comparison.to_csv("crossings_comparison_0_0.csv", index=False)
     
     
-    plot_concave_threshold_comparison(it2, "Class3_it2_example_0113")
-    plt.savefig("rysunki/concave_threshold.pdf", format="pdf", bbox_inches=None)
+    # plot_concave_threshold_comparison(it2, "Class3_it2_example_0113")
+    # plt.savefig("rysunki/concave_threshold.pdf", format="pdf", bbox_inches=None)
+    
+    
     
        
 # %% --------- wyglad sygnalu przed vs po filtracji ---------------------------
@@ -1527,6 +1531,129 @@ if __name__ == "__main__":
     # print("Uśrednione wyniki zapisane w 'concave_comparison_avg_it1.csv'")
     # print(metrics_avg.head(10))
 
+
+# ---------- PRZYKLADY PULSACJI -----------
+
+    # fig, _ = plot_punkty_charakterystyczne(
+    # datasets=[it1, it2],
+    # filenames=[
+    #     "Class1_example_0210",  # wyraźne maksima
+    #     "Class1_example_0028",
+    #     "Class1_example_0170",
+    #     "Class1_it2_example_0080"
+    # ]
+    # )
+    # plt.savefig(
+    # "rysunki/przykladowe_pulsacje_K1.pdf",
+    # format="pdf",
+    # bbox_inches=None
+    # )
+    # fig2, _ = plot_punkty_charakterystyczne(
+    # datasets=[it1, it2],
+    # filenames=[
+    #     "Class2_example_0028",  # wyraźne maksima
+    #     "Class2_example_0009",
+    #     "Class2_example_0098",
+    #     "Class2_example_0149",
+    #     "Class2_it2_example_0047"
+    # ]
+    # )
+    # plt.savefig(
+    # "rysunki/przykladowe_pulsacje_K2.pdf",
+    # format="pdf",
+    # bbox_inches=None
+    # )
+    
+    # fig3, _ = plot_punkty_charakterystyczne(
+    # datasets=[it1, it2],
+    # filenames=[
+    #     "Class3_example_0289",  # wyraźne maksima
+    #     "Class3_it2_example_0149",
+    #     "Class3_it2_example_0120",
+
+    # ]
+    # )
+    # plt.savefig(
+    # "rysunki/przykladowe_pulsacje_K3.pdf",
+    # format="pdf",
+    # bbox_inches=None
+    # )
+    
+    # fig4, _ = plot_punkty_charakterystyczne(
+    # datasets=[it1],
+    # filenames=[
+    #     "Class4_example_0066",  # wyraźne maksima
+    #     "Class4_example_0074",
+    # ]
+    # )
+    # plt.savefig(
+    # "rysunki/przykladowe_pulsacje_K4.pdf",
+    # format="pdf",
+    # bbox_inches=None
+    # )
+    
+    filename = "Class2_example_0028"
+    dataset_name = "it1"
+    sample_range = (42, 90)
+    
+    # --- wybór sygnału ---
+    data = next(d for d, n in datasets if n == dataset_name)
+
+    # wybieramy konkretny plik
+    item = next(item for item in data if item["file"] == filename)
+    if item is None:
+        raise ValueError(f"Nie znaleziono sygnału o nazwie {filename}")
+    
+    sig = item["signal"]
+    t = sig.iloc[:, 0].values
+    y = sig.iloc[:, 1].values
+    
+    # --- Wycinek sygnału ---
+    mask = (t >= sample_range[0]) & (t <= sample_range[1])
+    t = t[mask]
+    y = y[mask]
+    
+    # --- Druga pochodna ---
+    dy = np.gradient(y, t)         # pierwsza pochodna
+    d2y = np.gradient(dy, t)       # druga pochodna
+    
+    # --- Wykrycie fragmentów wklęsłych (d2y < 0) ---
+    concave_mask = d2y < 0
+    
+    # znajdowanie segmentów ciągłych
+    segments = []
+    in_segment = False
+    for i, val in enumerate(concave_mask):
+        if val and not in_segment:
+            start = i
+            in_segment = True
+        elif not val and in_segment:
+            end = i-1
+            segments.append((start, end))
+            in_segment = False
+    if in_segment:  # końcowy segment
+        segments.append((start, len(concave_mask)-1))
+    
+    # --- Rysowanie ---
+    # plt.style.use("seaborn-white")
+    plt.figure(figsize=(16,9))
+    
+    # cały fragment sygnału
+    plt.plot(t, y, color="lightseagreen", lw=2.2)
+    
+    # zaznaczenie fragmentów wklęsłych
+    for start_idx, end_idx in segments:
+        plt.plot(t[start_idx:end_idx+1], 
+                 y[start_idx:end_idx+1], color="teal", lw=9)
+    
+    plt.axis('off')  # brak osi
+    ax = plt.gca()
+    ax.set_xticks([])  # usuwa tiks osi x
+    ax.set_yticks([])  # usuwa tiks osi y
+    ax.set_xticklabels([])  # usuwa etykiety osi x
+    ax.set_yticklabels([])  # usuwa etykiety osi y
+    plt.tight_layout()
+    plt.show()
 # ---------- koniec ----------------
     print("jejj jupii")
     

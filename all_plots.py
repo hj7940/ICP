@@ -1837,6 +1837,79 @@ def plot_concave_threshold_comparison(dataset, filename):
 # plot_concave_threshold_comparison(dataset, "twoj_plik.csv")
 
 
+import string
+
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import string
+import numpy as np
+
+def plot_punkty_charakterystyczne(datasets, filenames, figsize_per_plot=(4, 3)):
+    n = len(filenames)
+    panel_labels = list(string.ascii_lowercase)
+    
+    if n <= 4:
+        fig, axes = plt.subplots(1, n, figsize=(figsize_per_plot[0]*n, figsize_per_plot[1]), squeeze=False)
+        axes = list(axes.flatten())
+    else:
+        # Tworzymy siatkę 2 wiersze na 6 kolumn (najmniejsza wspólna wielokrotność dla 2 i 3)
+        # Dzięki temu każdy subplot zawsze ma szerokość "2 jednostek" siatki
+        nrows = 2
+        ncols = 6
+        fig = plt.figure(figsize=(figsize_per_plot[0]*3, figsize_per_plot[1]*nrows))
+        gs = gridspec.GridSpec(nrows, ncols, figure=fig)
+        
+        axes = []
+        # Pierwszy wiersz: 3 wykresy, każdy zajmuje 2 kolumny (0-1, 2-3, 4-5)
+        for i in range(3):
+            axes.append(fig.add_subplot(gs[0, i*2 : (i*2+2)]))
+            
+        # Drugi wiersz: 2 wykresy, każdy zajmuje 2 kolumny, ale przesunięte (1-2, 3-4)
+        # To sprawi, że będą idealnie wyśrodkowane pod górnym rzędem
+        axes.append(fig.add_subplot(gs[1, 1:3]))
+        axes.append(fig.add_subplot(gs[1, 3:5]))
+
+    # --- Reszta logiki (identyczna jak u Ciebie) ---
+    def find_file_in_datasets(fname):
+        for ds in datasets:
+            for item in ds:
+                if item["file"] == fname: return item
+        raise ValueError(f"Plik '{fname}' nie znaleziony.")
+
+    peak_cfg = {"P1": ("red", "P1"), "P2": ("green", "P2"), "P3": ("blue", "P3")}
+
+    for i, (ax, fname, label) in enumerate(zip(axes, filenames, panel_labels)):
+        item = find_file_in_datasets(fname)
+        signal = item["signal"]
+        peaks_ref = item.get("peaks_ref", {})
+        x, y = signal.iloc[:, 0].values, signal.iloc[:, 1].values
+
+        ax.plot(x, y, color="black", linewidth=1.2)
+
+        for key, (color, txt) in peak_cfg.items():
+            val = peaks_ref.get(key, None)
+            if val is not None:
+                idx = np.atleast_1d(val)
+                for pt in map(int, idx):
+                    ax.plot(x[pt], y[pt], "o", color=color, markersize=6)
+                    ax.annotate(txt, (x[pt], y[pt]), xytext=(0, 8), textcoords="offset points",
+                                ha="center", va="bottom", fontsize=12)
+
+        ax.set_xlabel("Numer próbki")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.set_xlim(0, 180)
+        ax.set_ylim(bottom=0)
+        ax.text(0.02, 1, f"({label})", transform=ax.transAxes, fontweight="bold", va="top",
+                fontsize=12)
+        
+        # Etykieta Y tylko dla pierwszych wykresów w wierszu
+        if i == 0 or i == 3:
+            ax.set_ylabel("Amplituda [−]")
+
+    fig.tight_layout()
+    return fig, axes
+
 if __name__ == "__main__":
     
 

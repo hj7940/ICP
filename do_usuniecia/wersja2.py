@@ -11,7 +11,9 @@ from peak_detection_new import wavelet, hilbert_envelope
 
 # TODO osobna funkcja licząca pochodne 1. i 2. stopnia
 # TODO draft pierwsze podejscie do algorytmów
-# klasa 1 - p1 najwyzszy, klasa 2 - p2 najwyzszy, p1>p3, klasa 3 - p2 najwyzszy, p1<p3 
+# klasa 1 - p1 najwyzszy,
+# klasa 2 - p2 najwyzszy, p1>p3,
+# klasa 3 - p2 najwyzszy, p1<p3
 # istniejace ilustracje ok, mozna tlumaczyc na polski (grafika zaadaptowane)
 
 # składowe, sposób pomiaru, state of the art, 
