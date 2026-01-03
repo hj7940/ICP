@@ -630,3 +630,64 @@ def compute_peak_metrics_fixed(detection_results, settings, peak_name, class_nam
 #     df_metrics["Num_Signals_with_Peak"] = num_detected
 
 #     return df_metrics
+
+
+
+
+# # --- wariant a ---
+# df_variant_a = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),  
+#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
+#     ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
+#     ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])
+
+# # --- wariant b ---
+# df_variant_b = pd.DataFrame([
+#     # -------- Class1 --------
+#     ("Class1", "P1", "it1",            "it1",            "full", "concave"),
+#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
+#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
+
+#     # -------- Class2 --------
+#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
+#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
+#     ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
+
+#     # -------- Class3 --------
+#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
+#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
+#     ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
+
+#     # -------- Class4 --------
+#     ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
+# ],
+# columns=[
+#     "class",
+#     "peak",
+#     "detect_dataset",
+#     "ranges_dataset",
+#     "range_type",
+#     "method"
+# ])

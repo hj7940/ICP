@@ -1910,6 +1910,96 @@ def plot_punkty_charakterystyczne(datasets, filenames, figsize_per_plot=(4, 3)):
     fig.tight_layout()
     return fig, axes
 
+
+def plot_selected_files(detection_results, class_name, files_to_plot, ncols=3):
+    """
+    Rysuje wybrane pliki z danej klasy.
+    
+    Parametry:
+        detection_results: lista słowników z wynikami detekcji
+        class_name: nazwa klasy, którą chcemy filtrować
+        files_to_plot: lista nazw plików do wyplotowania
+        ncols: liczba kolumn w subplotach (domyślnie 3)
+    """
+    # Filtrujemy tylko pliki z danej klasy i podanej listy
+    # selected_files = [
+    #     item for item in detection_results
+    #     if item["class"] == class_name and item["file"] in files_to_plot
+    # ]
+    
+    selected_files = [next(item for item in detection_results if item["file"] == f and item["class"] == class_name)
+                  for f in files_to_plot]
+
+    
+    n_files = len(selected_files)
+    nrows = (n_files + ncols - 1) // ncols
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5*ncols, 3*nrows), squeeze=False)
+    axes = axes.flatten()
+    
+    # Kolory dla pików
+    peak_colors_ref = {'P1': 'red', 'P2': 'green', 'P3': 'blue'}
+    peak_colors_det = {'P1': 'gold', 'P2': 'chartreuse', 'P3': 'skyblue'}
+    
+    letters = [f"({chr(97+i)})" for i in range(n_files)]  # (a), (b), ...
+    
+    for idx, item in enumerate(selected_files):
+        ax = axes[idx]
+        df = item["signal"]
+        t = df.iloc[:, 0].values
+        y = df.iloc[:, 1].values
+        
+        # Rysujemy sygnał
+        ax.plot(t, y, color='black', lw=1)
+        
+        # ===== PIKI REFERENCYJNE =====
+        for p, ref_idx in item.get("peaks_ref", {}).items(): 
+            if ref_idx is None or (isinstance(ref_idx, float) and np.isnan(ref_idx)):
+                continue
+            ref_idx = [ref_idx] if not isinstance(ref_idx, (list, tuple, np.ndarray)) else list(ref_idx)
+            ax.scatter(t[ref_idx], y[ref_idx], color=peak_colors_ref.get(p, "gray"),
+                       marker="o", s=60, alpha=1.0, label=f"{p} referencyjny" if idx == 0 else "", zorder=10)
+        
+        # ===== PIKI WYKRYTE =====
+        for p, det_idx in item.get("peaks_detected", {}).items():
+            if det_idx is None or (isinstance(det_idx, float) and np.isnan(det_idx)):
+                continue
+            det_idx = [det_idx] if not isinstance(det_idx, (list, tuple, np.ndarray)) else list(det_idx)
+            ax.scatter(t[det_idx], y[det_idx], color=peak_colors_det.get(p, "gray"),
+                       marker="x", s=70, alpha=1.0, label=f"{p} wykryty" if idx == 0 else "", zorder=10)
+        
+        if idx % ncols == 0:
+            ax.set_ylabel('Amplituda [-]')
+        else:
+            ax.set_ylabel('')
+            
+        ax.set_xlabel('Numer próbki')
+        
+        ax.text(
+            0.02, 0.95, letters[idx],
+            transform=ax.transAxes,
+            fontsize=9,
+            fontweight='bold',
+            va='top',
+            ha='left'
+        )
+        
+        
+        ax.set_title('')  # brak tytułów
+        ax.set_xlim(0, 180)
+        ax.set_ylim(bottom=0)
+    
+    # Usuń puste subplots
+    for j in range(idx+1, len(axes)):
+        fig.delaxes(axes[j])
+    
+    # Dodaj legendę tylko raz
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper right', fontsize=9)
+    fig.tight_layout()
+    # plt.show()
+
+
 if __name__ == "__main__":
     
 

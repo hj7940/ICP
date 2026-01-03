@@ -42,7 +42,7 @@ from main import (all_methods, it2, it2_smooth_4Hz, it2_smooth_3Hz,
                   ranges_all_time, ranges_all_amps)
 from all_plots import (plot_files_in_class, plot_upset_classic_postproc_new, 
                        plot_signal_pre_post, plot_signal_with_concave_areas, 
-                       plot_peak_detection_pie_new)
+                       plot_peak_detection_pie_new, plot_selected_files)
 
 # do sprawdzenia
 
@@ -687,6 +687,7 @@ def compute_dxy_per_peak(results_combined, expected_peaks=("P1","P2","P3")):
     records = []
     for item in results_combined:
         file_name = item["file"]
+        class_id = item.get("class", "Unknown")
         sig = item["signal_raw"]
         t = sig.iloc[:,0].values
         y = sig.iloc[:,1].values
@@ -704,6 +705,7 @@ def compute_dxy_per_peak(results_combined, expected_peaks=("P1","P2","P3")):
             
             records.append({
                 "file": file_name,
+                "class": class_id,
                 "peak": peak,
                 "dxy": dxy
             })
@@ -713,32 +715,62 @@ def compute_dxy_per_peak(results_combined, expected_peaks=("P1","P2","P3")):
 # 2. Funkcja do łączenia dwóch wariantów w pary
 # =========================
 def merge_dxy_for_wilcoxon(df1, df2):
-    """
-    Łączy błędy z dwóch wariantów wg pliku i piku, gotowe do testu Wilcoxona.
-    df1, df2: DataFrame z kolumnami ['file','peak','dxy']
-    """
-    merged = pd.merge(df1, df2, on=["file","peak"], suffixes=("_new","_new_simpl"))
-    # usuwa wiersze z nan w którymkolwiek wariancie
+    # Dodajemy "class" do listy kluczy (on=)
+    merged = pd.merge(df1, df2, on=["file", "class", "peak"], suffixes=("_new","_new_simpl"))
     merged = merged.dropna(subset=["dxy_new","dxy_new_simpl"])
     return merged
 
 # =========================
 # 3. Funkcja do wykonania testu Wilcoxona dla wszystkich pików
 # =========================
-def wilcoxon_test_all_peaks(merged_df):
+# def wilcoxon_test_all_peaks(merged_df):
+#     """
+#     merged_df: DataFrame z kolumnami ['file','peak','dxy_new','dxy_new_simpl']
+#     Zwraca DataFrame z wynikami testu dla każdego piku.
+#     """
+#     results = []
+#     for peak in merged_df["peak"].unique():
+#         sub = merged_df[merged_df["peak"]==peak]
+#         if len(sub) < 5:  # zbyt mało danych
+#             p_value = np.nan
+#             stat = np.nan
+#         else:
+#             stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"])
+#         results.append({
+#             "peak": peak,
+#             "n_pairs": len(sub),
+#             "wilcoxon_stat": stat,
+#             "p_value": p_value
+#         })
+    # return pd.DataFrame(results)
+    
+def wilcoxon_test_by_class_and_peak(merged_df):
     """
-    merged_df: DataFrame z kolumnami ['file','peak','dxy_new','dxy_new_simpl']
-    Zwraca DataFrame z wynikami testu dla każdego piku.
+    merged_df: DataFrame z kolumnami ['file', 'class', 'peak', 'dxy_new', 'dxy_new_simpl']
     """
     results = []
-    for peak in merged_df["peak"].unique():
-        sub = merged_df[merged_df["peak"]==peak]
-        if len(sub) < 5:  # zbyt mało danych
+    # Grupowanie po dwóch kolumnach: klasie i piku
+    for (class_id, peak), sub in merged_df.groupby(["class", "peak"]):
+        
+        # Obliczamy różnice
+        diff = sub["dxy_new"] - sub["dxy_new_simpl"]
+        
+        # Sprawdzamy, czy wszystkie różnice są zerem (identyczne wyniki)
+        if (diff == 0).all():
+            p_value = 1.0  # identyczne rozkłady
+            stat = 0.0
+        elif len(sub) < 5:
             p_value = np.nan
             stat = np.nan
         else:
-            stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"])
+            # zero_method="pratt" pomaga, gdy jest dużo identycznych par
+            try:
+                stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"], zero_method="pratt")
+            except:
+                stat, p_value = np.nan, np.nan
+
         results.append({
+            "class": class_id,
             "peak": peak,
             "n_pairs": len(sub),
             "wilcoxon_stat": stat,
@@ -753,8 +785,26 @@ def run_wilcoxon_pipeline(results_new_pp, results_new_s_pp, expected_peaks=("P1"
     df_new = compute_dxy_per_peak(results_new_pp, expected_peaks)
     df_simpl = compute_dxy_per_peak(results_new_s_pp, expected_peaks)
     merged = merge_dxy_for_wilcoxon(df_new, df_simpl)
-    wilcoxon_results = wilcoxon_test_all_peaks(merged)
+    wilcoxon_results = wilcoxon_test_by_class_and_peak(merged)
     return wilcoxon_results
+#, df_new, df_simpl
+
+
+def prepare_metrics_df(df, version_name):
+    cols = [
+        "Class",
+        "Peak",
+        "Mean_X_Error",
+        "Mean_Y_Error",
+        "Mean_XY_Error",
+        "TP",
+        "FP",
+        "FN",
+    ]
+    
+    out = df[cols].copy()
+    out["Version"] = version_name
+    return out
 
 
 """
@@ -844,65 +894,6 @@ Class4:
     
 """
 
-
-# # --- wariant a ---
-# df_variant_a = pd.DataFrame([
-#     # -------- Class1 --------
-#     ("Class1", "P1", "it1",            "it1",            "avg",  "concave"),  
-#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
-#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
-
-#     # -------- Class2 --------
-#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
-#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "whiskers", "line_distance_10"),
-#     ("Class2", "P3", "it1",            "it1",            "full",      "hilbert"),
-
-#     # -------- Class3 --------
-#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
-#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg", "hilbert"),
-#     ("Class3", "P3", "it1",            "it1",            "full", "modified_scholkmann_1-2_99"),
-
-#     # -------- Class4 --------
-#     ("Class4", "P2", "it1", "it1", "full", "concave_d2x=0-002"),
-# ],
-# columns=[
-#     "class",
-#     "peak",
-#     "detect_dataset",
-#     "ranges_dataset",
-#     "range_type",
-#     "method"
-# ])
-
-# # --- wariant b ---
-# df_variant_b = pd.DataFrame([
-#     # -------- Class1 --------
-#     ("Class1", "P1", "it1",            "it1",            "full", "concave"),
-#     ("Class1", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "curvature"),
-#     ("Class1", "P3", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "concave"),
-
-#     # -------- Class2 --------
-#     ("Class2", "P1", "it1_smooth_3Hz", "it1_smooth_3Hz", "avg",  "hilbert"),
-#     ("Class2", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "line_distance_10"),
-#     ("Class2", "P3", "it1",            "it1",            "pm3", "hilbert"),
-
-#     # -------- Class3 --------
-#     ("Class3", "P1", "it1_smooth_4Hz", "it1_smooth_4Hz", "full", "wavelet"),
-#     ("Class3", "P2", "it1_smooth_4Hz", "it1_smooth_4Hz", "avg",  "wavelet"),
-#     ("Class3", "P3", "it1",            "it1",            "none", "modified_scholkmann_1-2_99"),
-
-#     # -------- Class4 --------
-#     ("Class4", "P2", "it1", "it1", "pm3", "concave_d2x=0-002"),
-# ],
-# columns=[
-#     "class",
-#     "peak",
-#     "detect_dataset",
-#     "ranges_dataset",
-#     "range_type",
-#     "method"
-# ])
-
 # --- wariant NOWY ---
 df_new = pd.DataFrame([
     # -------- Class1 --------
@@ -918,7 +909,7 @@ df_new = pd.DataFrame([
     # -------- Class3 --------
     ("Class3", "P1", "it2_smooth_4Hz", "it2_smooth_4Hz", "avg", "wavelet"),
     ("Class3", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "avg", "hilbert"), # whiskers hilbert tez ok
+    ("Class3", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class4 --------
     ("Class4", "P2", "it2", "it2_smooth_4Hz", "full", "concave_d2x=0-002"),
@@ -940,11 +931,11 @@ df_new_simplified = pd.DataFrame([
 
     # -------- Class2 --------
     ("Class2", "P1", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
-    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "full", "concave"), # full hilbert tez ok
+    ("Class2", "P2", "it2",            "it2_smooth_4Hz", "avg", "concave"), # full hilbert tez ok
     ("Class2", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
     # -------- Class3 --------
-    ("Class3", "P1", "it2",            "it2_smooth_4Hz", "avg", "hilbert"),
+    ("Class3", "P1", "it2",            "it2_smooth_4Hz", "avg", "concave"),
     ("Class3", "P2", "it2",            "it2_smooth_4Hz", "avg",  "concave"),
     ("Class3", "P3", "it2",            "it2_smooth_4Hz", "full", "hilbert"), # whiskers hilbert tez ok
 
@@ -967,7 +958,7 @@ datasets_dict = {
 }
 
 
-out_dir = "rysunki_upset_nowe"
+out_dir = "koncowe_rysunki_3_01"
 # %% ================= DRUGI ZESTAW (IT2) ====================
 # results_a_it2 = run_variant(
 #     df_variant_a,
@@ -1012,6 +1003,51 @@ results_new = run_variant(
     ranges_all_time=ranges_all_time,
     ranges_all_amps=ranges_all_amps)
 
+
+# rows = []
+
+# for item in results_new:
+#     class_id = item["class"]
+#     file_name = item["file"]
+    
+#     for peak, detected in item["peaks_detected"].items():
+#         if class_id == "Class4" and peak != "P2":
+#             continue
+        
+#         n_det = len(detected) if isinstance(detected, list) else 0
+        
+#         rows.append({
+#             "Class": class_id,
+#             "Peak": peak,
+#             "File": file_name,
+#             "n_detections": n_det
+#         })
+
+# df_counts = pd.DataFrame(rows)
+
+# def detection_category(n):
+#     if n == 1:
+#         return "1"
+#     elif n == 2:
+#         return "2"
+#     elif n >= 3:
+#         return "≥3"
+#     else:
+#         return "0"   # brak detekcji – opcjonalnie
+
+# df_counts["Category"] = df_counts["n_detections"].apply(detection_category)
+
+# summary = (
+#     df_counts
+#     .groupby(["Class", "Peak", "Category"])
+#     .size()
+#     .unstack(fill_value=0)
+#     .reset_index()
+# )
+
+# print(summary)
+
+
 results_combined_new = combine_peaks_by_file(results_new)
 results_combined_new_pp = postprocess_peaks(results_combined_new)
 
@@ -1039,34 +1075,171 @@ classes = ["Class1", "Class2", "Class3", "Class4"]
 
 df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
 df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
-df_metrics_pre.to_csv("27_12_metrics_pre.csv", index=False)
-df_metrics_post.to_csv("27_12_metrics_post.csv", index=False)
+# df_metrics_pre.to_csv("02_01_metrics_pre.csv", index=False)
+# df_metrics_post.to_csv("02_01metrics_post.csv", index=False)
+
+mean_dxy = df_metrics_post["Mean_XY_Error"].mean()
+
+# Sumowanie TP, FP, FN po wszystkich wierszach
+TP_total = df_metrics_post['TP'].sum()
+FP_total = df_metrics_post['FP'].sum()
+FN_total = df_metrics_post['FN'].sum()
+
+# Czułość (sensitivity / recall)
+sensitivity = 100 * TP_total / (TP_total + FN_total) if (TP_total + FN_total) > 0 else np.nan
+
+# Precyzja (precision)
+precision = 100 * TP_total / (TP_total + FP_total) if (TP_total + FP_total) > 0 else np.nan
+
+print(f"Średni błąd: {mean_dxy:.3f}")
+print(f"Czułość (Sensitivity %): {sensitivity:.2f}%")
+print(f"Precyzja (Precision %): {precision:.2f}%")
 
 
-"""
-classes = ["Class1", "Class2", "Class3",]
-for class_id in classes:
-    # plot_upset_classic_postproc_new(results_combined_new, class_id)
-    plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
-    plt.savefig(
-        os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
-        format="pdf",
-        bbox_inches="tight"
-    )
+# sumowanie wartości TP, FP, FN
+TP_total = df_metrics_post['TP'].sum()
+FP_total = df_metrics_post['FP'].sum()
+FN_total = df_metrics_post['FN'].sum()
 
-plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
-plt.savefig(
-    os.path.join(out_dir, "pie_Class4_P2_post.pdf"),
-    format="pdf",
-    bbox_inches="tight"
-)
-"""
+# średni błąd XY uśredniony między pikami
+mean_dxy = df_metrics_post['Mean_XY_Error'].mean()
+
+# czułość / sensitivity
+sensitivity = 100 * TP_total / (TP_total + FN_total)
+
+# precyzja / precision
+precision = 100 * TP_total / (TP_total + FP_total)
+
+# wyświetlenie krok po kroku
+print("ŚREDNI BŁĄD XY (uśredniony między pikami):")
+print(f"Mean_dxy = sum(Mean_XY_Error dla wszystkich pików) / liczba pików")
+print(f"Mean_dxy = {mean_dxy:.3f}\n")
+
+print("CZUŁOŚĆ / SENSITIVITY:")
+print(f"Sensitivity = TP / (TP + FN) * 100%")
+print(f"Sensitivity = {TP_total} / ({TP_total} + {FN_total}) * 100%")
+print(f"Sensitivity = {sensitivity:.2f}%\n")
+
+print("PRECYZJA / PRECISION:")
+print(f"Precision = TP / (TP + FP) * 100%")
+print(f"Precision = {TP_total} / ({TP_total} + {FP_total}) * 100%")
+print(f"Precision = {precision:.2f}%")
+
+# plot_selected_files(
+#     detection_results=results_combined_new_pp,
+#     class_name="Class1",
+#     files_to_plot=["Class1_it2_example_0119", 
+#                    "Class1_it2_example_0083",
+#                    "Class1_it2_example_0080",
+#                    "Class1_it2_example_0109"],
+#     ncols=2
+# )
+# plt.savefig("rysunki/final_detection_examples_k1.pdf", 
+#             bbox_inches=None)
+
+# plot_selected_files(
+#     detection_results=results_combined_new_pp,
+#     class_name="Class2",
+#     files_to_plot=["Class2_it2_example_0022", 
+#                    "Class2_it2_example_0002",
+#                    "Class2_it2_example_0058"],
+#     ncols=3
+# )
+# plt.savefig("rysunki/final_detection_examples_k2.pdf", 
+#             bbox_inches=None)
+
+# plot_selected_files(
+#     detection_results=results_combined_new_pp,
+#     class_name="Class3",
+#     files_to_plot=["Class3_it2_example_0004", 
+#                    "Class3_it2_example_0105",
+#                    "Class3_it2_example_0047"],
+#     ncols=3
+# )
+# plt.savefig("rysunki/final_detection_examples_k3.pdf", 
+#             bbox_inches=None)
+
+
+# plot_selected_files(
+#     detection_results=results_combined_new_pp,
+#     class_name="Class4",
+#     files_to_plot=["Class4_it2_example_0033", 
+#                    "Class4_it2_example_0024",
+#                    "Class4_it2_example_0019"],
+    
+#     ncols=3
+# )
+# plt.savefig("rysunki/final_detection_examples_k4.pdf", 
+#             bbox_inches=None)
+
+# classes = ["Class1", "Class2", "Class3",]
+# for class_id in classes:
+#     # plot_upset_classic_postproc_new(results_combined_new, class_id)
+#     plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
+#     plt.savefig(
+#         os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
+#         format="pdf",
+#         bbox_inches="tight"
+#     )
+
+# plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
+# plt.savefig(
+#     os.path.join(out_dir, "pie_Class4_P2_post.pdf"),
+#     format="pdf",
+#     bbox_inches="tight"
+# )
+
 
 results_new_simpl = run_variant(
     df_new_simplified,
     datasets_dict=datasets_dict,
     ranges_all_time=ranges_all_time,
     ranges_all_amps=ranges_all_amps)
+
+
+# rows = []
+
+# for item in results_new_simpl:
+#     class_id = item["class"]
+#     file_name = item["file"]
+    
+#     for peak, detected in item["peaks_detected"].items():
+#         if class_id == "Class4" and peak != "P2":
+#             continue
+        
+#         n_det = len(detected) if isinstance(detected, list) else 0
+        
+#         rows.append({
+#             "Class": class_id,
+#             "Peak": peak,
+#             "File": file_name,
+#             "n_detections": n_det
+#         })
+
+# df_counts = pd.DataFrame(rows)
+
+# def detection_category(n):
+#     if n == 1:
+#         return "1"
+#     elif n == 2:
+#         return "2"
+#     elif n >= 3:
+#         return "≥3"
+#     else:
+#         return "0"   # brak detekcji – opcjonalnie
+
+# df_counts["Category"] = df_counts["n_detections"].apply(detection_category)
+
+# summary2 = (
+#     df_counts
+#     .groupby(["Class", "Peak", "Category"])
+#     .size()
+#     .unstack(fill_value=0)
+#     .reset_index()
+# )
+
+# print(summary2)
+
 
 results_combined_new_s = combine_peaks_by_file(results_new_simpl)
 results_combined_new_s_pp = postprocess_peaks(results_combined_new_s)
@@ -1087,39 +1260,199 @@ df_pogladowe_new_s_pp = pd.DataFrame([
     }
     for d in results_combined_new_s_pp])
 
-classes = ["Class1", "Class2", "Class3", "Class4"]
+# classes = ["Class1", "Class2", "Class3", "Class4"]
 # for cls in classes:
 #     plot_files_in_class(results_combined_new_s_pp, cls)
 
-df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
-df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
-df_metrics_pre.to_csv("27_12_metrics_pre_simpl.csv", index=False)
-df_metrics_post.to_csv("27_12_metrics_post_simpl.csv", index=False)
 
-expected_peaks = ["P1","P2","P3"]
-wilcoxon_results = run_wilcoxon_pipeline(results_combined_new_pp, results_combined_new_s_pp, expected_peaks)
-print(wilcoxon_results)
+df_metrics_pre_s = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
+df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
+# df_metrics_pre.to_csv("27_12_metrics_pre_simpl.csv", index=False)
+# df_metrics_post.to_csv("27_12_metrics_post_simpl.csv", index=False)
 
-# for cls in classes:
-#     plot_files_in_class(results_combined_new_s_pp, cls)
-"""
-classes = ["Class1", "Class2", "Class3"]
-for class_id in classes:
-    # plot_upset_classic_postproc(results_combined_new_s, class_id)
-    plot_upset_classic_postproc_new(results_combined_new_s_pp, class_id)
-    plt.savefig(
-        os.path.join(out_dir, f"upset_{class_id}_post_simpl.pdf"),
-        format="pdf",
-        bbox_inches="tight"
-    )
+
+# df_fit_pre  = prepare_metrics_df(
+#     df_metrics_pre,
+#     "dopasowany – przed postprocessingiem"
+# )
+
+# df_fit_post = prepare_metrics_df(
+#     df_metrics_post,
+#     "dopasowany – po postprocessingu"
+# )
+
+# df_s_pre = prepare_metrics_df(
+#     df_metrics_pre_s,
+#     "uproszczony – przed postprocessingiem"
+# )
+
+# df_s_post = prepare_metrics_df(
+#     df_metrics_post_s,
+#     "uproszczony – po postprocessingu"
+# )
+
+# df_metrics_all = pd.concat(
+#     [df_fit_pre, df_fit_post, df_s_pre, df_s_post],
+#     ignore_index=True
+# )
+
+# df_metrics_all = df_metrics_all[
+#     ["Class", "Peak", "Version",
+#      "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error",
+#      "TP", "FP", "FN"]
+# ]
+
+# version_order = [
+#     "dopasowany – przed postprocessingiem",
+#     "dopasowany – po postprocessingu",
+#     "uproszczony – przed postprocessingiem",
+#     "uproszczony – po postprocessingu"
+# ]
+
+# df_metrics_all["Version"] = pd.Categorical(
+#     df_metrics_all["Version"],
+#     categories=version_order,
+#     ordered=True
+# )
+
+
+# df_metrics_all = df_metrics_all.sort_values(
+#     ["Class", "Peak", "Version"]
+# ).reset_index(drop=True)
+
+# df_metrics_all.to_csv("newk3p1_metrics_2_01.csv", index=False)
+
+# # df_metrics_all.to_latex(
+#     "metrics_all_versions.tex",
+#     index=False,
+#     float_format="%.3f"
+# )
+
+
+# =========== WILCOXON ====================
+# ============================================
+
+# expected_peaks = ["P1","P2","P3"]
+# wilcoxon_results = run_wilcoxon_pipeline(results_combined_new_pp, results_combined_new_s_pp, expected_peaks)
+# print(wilcoxon_results)
+
+# # 2. Obliczenie wyniku GLOBALNEGO (dla całej pracy)
+# # Łączymy wszystkie pary dxy z wyników szczegółowych w jeden wektor
+# df_new = compute_dxy_per_peak(results_combined_new_pp, expected_peaks)
+# df_simpl = compute_dxy_per_peak(results_combined_new_s_pp, expected_peaks)
+# merged_global = merge_dxy_for_wilcoxon(df_new, df_simpl)
+
+# # Wykonujemy test na całości danych
+
+# stat_glob, p_glob = wilcoxon(merged_global["dxy_new"], 
+#                              merged_global["dxy_new_simpl"], 
+#                              zero_method="pratt")
+
+# print(f"\n--- WYNIK GLOBALNY ---")
+# print(f"Suma par do testu: {len(merged_global)}")
+# print(f"p-value globalne: {p_glob:.20f}")
+
+# # Test jednostronny: czy błąd 'new' jest ISTOTNIE MNIEJSZY niż 'simpl'?
+# stat, p_less = wilcoxon(merged_global["dxy_new"], 
+#                         merged_global["dxy_new_simpl"], 
+#                         alternative='less', 
+#                         zero_method="pratt")
+
+# if p_less < 0.05:
+#     print("Algorytm dopasowany ma istotnie mniejsze błędy (ma przewagę).")
+# else: print("Łojojo") 
+
+# tp_total_new = df_metrics_post['TP'].sum()
+# tp_total_simpl = df_metrics_post_s['TP'].sum()
+
+# summary = {
+#     "Dopasowany": {
+#         "TP_total": tp_total_new, 
+#         "Mean_Err": df_new['dxy'].mean()
+#     },
+#     "Uproszczony": {
+#         "TP_total": tp_total_simpl, 
+#         "Mean_Err": df_simpl['dxy'].mean()
+#     }
+# }
+
+# print(f"Suma TP (Dopasowany): {tp_total_new}")
+# print(f"Suma TP (Uproszczony): {tp_total_simpl}")
+
+# diff = merged_global["dxy_new"] - merged_global["dxy_new_simpl"]
+# print(diff.median(), diff.mean())
+
+
+# merged_before = pd.merge(
+#     df_new,
+#     df_simpl,
+#     on=["file","class","peak"],
+#     suffixes=("_new","_new_simpl")
+# )
+
+# merged_after = merged_before.dropna(
+#     subset=["dxy_new","dxy_new_simpl"]
+# )
+
+# print(len(merged_before))
+# print(len(merged_after))
+
+
+# def plot_error_comparison(merged_df):
+#     plt.figure(figsize=(8, 8))
     
-plot_peak_detection_pie_new(results_combined_new_s_pp, "Class4")
-plt.savefig(
-    os.path.join(out_dir, "pie_Class4_P2_post_simpl.pdf"),
-    format="pdf",
-    bbox_inches="tight"
-)
-"""
+#     # Dane do wykresu
+#     x = merged_df["dxy_new_simpl"]
+#     y = merged_df["dxy_new"]
+    
+#     # Wykres rozrzutu
+#     plt.scatter(x, y, alpha=0.5, color='royalblue', label='Pary detekcji')
+    
+#     # Linia y = x (linia odniesienia)
+#     max_val = max(x.max(), y.max())
+#     plt.plot([0, max_val], [0, max_val], color='red', linestyle='--', label='y = x (Błędy równe)')
+    
+#     # Formatowanie
+#     plt.title('Porównanie błędów lokalizacji pików: Wariant dopasowany vs uproszczony', fontsize=12)
+#     plt.xlabel('Błąd wariantu uproszczonego [dxy_simpl]', fontsize=10)
+#     plt.ylabel('Błąd wariantu dopasowanego [dxy_new]', fontsize=10)
+    
+#     # Dodanie legendy i siatki
+#     plt.legend()
+#     plt.grid(True, linestyle=':', alpha=0.6)
+    
+#     # Opcjonalnie: wypełnienie obszaru pod linią (obszar sukcesu Twojego algorytmu)
+#     plt.fill_between([0, max_val], [0, max_val], color='green', alpha=0.05, label='Przewaga wariantu dopasowanego')
+    
+#     plt.tight_layout()
+#     plt.show()
+
+# # Wywołanie
+# plot_error_comparison(merged_global)
+
+
+# =====================================================
+
+
+# for cls in classes:
+#     plot_files_in_class(results_combined_new_s_pp, cls)
+
+# classes = ["Class1", "Class2", "Class3"]
+# for class_id in classes:
+#     # plot_upset_classic_postproc(results_combined_new_s, class_id)
+#     plot_upset_classic_postproc_new(results_combined_new_s_pp, class_id)
+#     # plt.savefig(
+#     #     os.path.join(out_dir, f"upset_{class_id}_post_simpl.pdf"),
+#     #     format="pdf",
+#     #     bbox_inches="tight"
+#     # )
+    
+# plot_peak_detection_pie_new(results_combined_new_s_pp, "Class4")
+# plt.savefig(
+#     os.path.join(out_dir, "pie_Class4_P2_post_simpl.pdf"),
+#     format="pdf",
+#     bbox_inches="tight"
+# )
 
 # # wariant a
 # df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
