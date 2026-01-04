@@ -210,7 +210,7 @@ def plot_signal_pre_post(
 
     # kolory pików
     peak_colors = {'P1': 'red', 'P2': 'green', 'P3': 'blue'}
-    peak_colors_d = {'P1': 'orange', 'P2': 'yellow', 'P3': 'cyan'}
+    peak_colors_d = {'P1': 'gold', 'P2': 'chartreuse', 'P3': 'skyblue'}
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
 
@@ -218,54 +218,60 @@ def plot_signal_pre_post(
     # -------- PRZED ----------
     # =========================
     ax = axes[0]
-    ax.plot(t, y, color="black", linewidth=1.5)
+    ax.plot(t, y, color="black", linewidth=1)
 
     for peak, color in peak_colors.items():
         # referencyjne
         ref = pre["peaks_ref"].get(peak)
         if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
-            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
-                    label=f"{peak} – referencyjny")
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=9,
+                    label=f"{peak} – referencyjny", zorder=9)
 
         # wykryte (lista)
         det = pre["peaks_detected"].get(peak, [])
         for i in det:
-            ax.plot(t[i], y[i], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
-                    markeredgewidth=2,
-                    label=f"{peak} – wykryty")
+            ax.plot(t[i], y[i], "x", color=peak_colors_d.get(peak, "gray"), 
+                    markersize=11.5,
+                    markeredgewidth=3,
+                    alpha=0.95,
+                    label=f"{peak} – wykryty", zorder=10)
 
-    ax.set_title("Przed postprocessingiem")
+    ax.set_title("Przed", fontsize=16)
     ax.set_xlabel("Numer próbki")
-    ax.set_ylabel("Amplituda")
+    ax.set_ylabel("Amplituda [-]")
     ax.legend(loc="upper right", fontsize=7)
+    ax.set_xlim(0, 180)
+    ax.set_ylim(bottom=0)
 
     # =========================
     # ---------- PO -----------
     # =========================
     ax = axes[1]
-    ax.plot(t, y, color="black", linewidth=1.5)
+    ax.plot(t, y, color="black", linewidth=1)
 
     for peak, color in peak_colors.items():
         # referencyjne
         ref = post["peaks_ref"].get(peak)
         if ref is not None and not (isinstance(ref, float) and math.isnan(ref)):
-            ax.plot(t[ref], y[ref], "o", color=color, markersize=8,
-                    label=f"{peak} – referencyjny")
+            ax.plot(t[ref], y[ref], "o", color=color, markersize=9,
+                    label=f"{peak} – referencyjny", zorder=9)
 
         # wykryte (po postproc: int lub NaN)
         det = post["peaks_detected"].get(peak)
         if det is not None and not (isinstance(det, float) and math.isnan(det)):
-            ax.plot(t[det], y[det], "x", color=peak_colors_d.get(peak, "gray"), markersize=9,
-                    markeredgewidth=2,
-                    label=f"{peak} – wykryty")
+            ax.plot(t[det], y[det], "x", color=peak_colors_d.get(peak, "gray"),
+                    markersize=11.5,
+                    markeredgewidth=3,
+                    alpha=0.95,
+                    label=f"{peak} – wykryty", zorder=10)
 
-    ax.set_title("Po postprocessingu")
+    ax.set_title("Po", fontsize=16)
     ax.set_xlabel("Numer próbki")
     ax.legend(loc="upper right", fontsize=7)
 
-    fig.suptitle(file_name, fontsize=14)
+    fig.suptitle("")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
     
     
 def plot_signal_with_concave_areas(dataset, filename):

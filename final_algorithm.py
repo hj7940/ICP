@@ -216,6 +216,203 @@ def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
 
 
 
+# def postprocess_peaks_new(results_combined):
+#     """
+#     Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
+#     """
+
+#     results_post=copy.deepcopy(results_combined)
+
+#     for item in results_post:
+#         class_id = item["class"]
+#         peaks = item["peaks_detected"]
+
+#         # pomocnicze
+#         def mean_peak(p):
+#             return [int(round(np.mean(p)))] if len(p) > 0 else []
+
+#         def first_peak(p):
+#             return [int(p[0])] if len(p) > 0 else []
+
+#         def last_peak(p):
+#             return [int(p[-1])] if len(p) > 0 else []
+        
+#         def middle_peak(p):
+#             """
+#             Środkowy element listy.
+#             Dla parzystej liczby → wcześniejszy z dwóch środkowych.
+#             """
+#             if len(p) == 0:
+#                 return []
+#             idx = (len(p) - 1) // 2
+#             return [int(p[idx])]
+        
+#         def second_peak(p):
+#             """
+#             Drugi element listy (drugi w czasie).
+#             Jeśli <2 elementy → [].
+#             """
+#             if len(p) >= 2:
+#                 return [int(p[1])]
+#             return p
+                
+#         def _finalize_peaks(peaks):
+#             """
+#             []  -> np.nan
+#             [x] -> x
+#             """
+#             out = {}
+#             for k, v in peaks.items():
+#                 if len(v) == 0:
+#                     out[k] = np.nan
+#                 else:
+#                     out[k] = int(v[0])
+#             return out
+
+#         # =========================
+#         # -------- Class1 ---------
+#         # =========================
+#         if class_id == "Class1":
+
+            
+#             # P3: jeśli dwa → zostaw późniejszy
+#             # ZMIANA! drugi
+#             peaks["P3"] = second_peak(peaks["P3"])
+
+#             # P1: jeśli kilka → średnia
+#             peaks["P1"] = first_peak(peaks["P1"])
+
+#             # P2: jesli kilka - sredni (brak info)
+#             peaks["P2"] = first_peak(peaks["P2"])
+
+#             # jeśli P2 i P3 zbyt blisko → usuń oba
+#             if peaks["P2"] and peaks["P3"]:
+#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
+#                     peaks["P2"] = []
+#                     peaks["P3"] = []
+#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
+            
+#             # --- NOWY WARUNEK (Class1): P3 pomiędzy dwoma P2 ---
+#             if len(peaks["P2"]) == 2 and len(peaks["P3"]) == 1:
+#                 x, y = min(peaks["P2"]), max(peaks["P2"])
+#                 z = peaks["P3"][0]
+#                 if x < z < y:
+#                     peaks["P2"] = []
+            
+#             # warunek P1 < P2 < P3
+#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
+#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
+#                     # jeśli P3 jest najpóźniejszy → zostaw tylko P3
+#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                     else:
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                         peaks["P3"] = []
+
+#         # =========================
+#         # -------- Class2 ---------
+#         # =========================
+#         elif class_id == "Class2":
+
+
+#             # # jeśli P2 i P3 zbyt blisko → usuń P3
+#             # if peaks["P2"] and peaks["P3"]:
+#             #     p2_val = peaks["P2"][0]
+#             #     peaks["P3"] = [p for p in peaks["P3"] if abs(p - p2_val) > 5]
+            
+#             # P3: jeśli 2 → drugi, jeśli >2 → środkowy
+#             # if len(peaks["P3"]) == 2:
+#             #     peaks["P3"] = [peaks["P3"][1]]
+#             # else:
+#             #     peaks["P3"] = middle_peak(peaks["P3"])
+            
+#             peaks["P3"] = second_peak(peaks["P3"])
+            
+#             # if peaks["P3"]:
+#             #     peaks["P2"] = [p for p in peaks["P2"] if p <= peaks["P3"][0]]
+#             # # P2: ostatni, a jeśli dokładnie 3 → środkowy
+#             # if len(peaks["P2"]) == 3:
+#             #     peaks["P2"] = middle_peak(peaks["P2"])
+#             # else:
+#             #     peaks["P2"] = last_peak(peaks["P2"])
+            
+#             peaks["P2"] = first_peak(peaks["P2"])
+            
+#             # P1: pierwszy
+#             peaks["P1"] = first_peak(peaks["P1"])
+            
+#             # jeśli P2 i P3 zbyt blisko → usuń oba
+#             if peaks["P2"] and peaks["P3"]:
+#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
+#                     peaks["P2"] = []
+#                     peaks["P3"] = []
+#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
+                    
+#             # warunek P1 < P2 < P3
+#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
+#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
+#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                     else:
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                         peaks["P3"] = []
+
+#         # =========================
+#         # -------- Class3 ---------
+#         # =========================
+#         # elif class_id == "Class3":
+
+            
+#             # P3: średnia ZMIANA drugi
+#             # peaks["P3"] = last_peak(peaks["P3"])
+#             peaks["P3"] = second_peak(peaks["P3"])
+
+#             # P1: first -> zmiana na last
+#             # peaks["P1"] = first_peak(peaks["P1"])
+#             peaks["P1"] = last_peak(peaks["P1"])
+
+#             # P2: pierwszy
+#             peaks["P2"] = first_peak(peaks["P2"])
+
+#             # # jeśli P2 i P3 zbyt blisko → usuń P3
+#             # if peaks["P2"] and peaks["P3"]:
+#             #     if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
+#             #         peaks["P3"] = []
+#             # jeśli P2 i P3 zbyt blisko → usuń oba
+#             if peaks["P2"] and peaks["P3"]:
+#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
+#                     peaks["P2"] = []
+#                     peaks["P3"] = []
+#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
+            
+#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
+#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
+#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                     else:
+#                         peaks["P1"] = []
+#                         peaks["P2"] = []
+#                         peaks["P3"] = []
+
+#         # =========================
+#         # -------- Class4 ---------
+#         # =========================
+#         elif class_id == "Class4":
+#             # tylko P2, jeśli kilka → średnia
+#             peaks["P2"] = middle_peak(peaks["P2"])
+#             peaks["P1"] = []
+#             peaks["P3"] = []
+            
+#         item["peaks_detected"] = _finalize_peaks(peaks)
+
+#     return results_post
+
+
 def postprocess_peaks(results_combined):
     """
     Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
@@ -247,6 +444,17 @@ def postprocess_peaks(results_combined):
             idx = (len(p) - 1) // 2
             return [int(p[idx])]
         
+        def second_peak(p):
+            """
+            Drugi element listy (drugi w czasie).
+            Jeśli <2 elementy → [].
+            """
+            if len(p) >= 2:
+                return [int(p[1])]
+            return p
+                
+	
+        
         def _finalize_peaks(peaks):
             """
             []  -> np.nan
@@ -259,16 +467,26 @@ def postprocess_peaks(results_combined):
                 else:
                     out[k] = int(v[0])
             return out
-
+        
+        # ==========================================================
+        # NOWY WARUNEK WSTĘPNY: Kolizja P1 i P3 (dla wszystkich klas)
+        # ==========================================================
+        if peaks["P1"] and peaks["P3"]:
+            # Usuwamy tylko te piki P3, które są zbyt blisko jakiegokolwiek piku P1
+            peaks["P3"] = [
+                p3 for p3 in peaks["P3"] 
+                if not any(abs(p3 - p1) <= 6 for p1 in peaks["P1"])
+            ]
+            
         # =========================
         # -------- Class1 ---------
         # =========================
         if class_id == "Class1":
             # P3: jeśli dwa → zostaw późniejszy
-            peaks["P3"] = last_peak(peaks["P3"])
+            peaks["P3"] = second_peak(peaks["P3"])
 
             # P1: jeśli kilka → średnia
-            peaks["P1"] = first_peak(peaks["P1"])
+            peaks["P1"] = middle_peak(peaks["P1"])
 
             # P2: jesli kilka - pierwszy
             peaks["P2"] = middle_peak(peaks["P2"])
@@ -302,22 +520,19 @@ def postprocess_peaks(results_combined):
         # -------- Class2 ---------
         # =========================
         elif class_id == "Class2":
-            # P3: jeśli 2 → drugi, jeśli >2 → środkowy
-            if len(peaks["P3"]) == 2:
-                peaks["P3"] = [peaks["P3"][1]]
-            else:
-                peaks["P3"] = middle_peak(peaks["P3"])
+            # P3: jeśli 2 → drugi, jeśli >2 → środkowy SPRAWDZONE - JEST OK
+            peaks["P3"] = second_peak(peaks["P3"])
 
-            if peaks["P3"]:
-                peaks["P2"] = [p for p in peaks["P2"] if p <= peaks["P3"][0]]
+            # if peaks["P3"]:
+            #     peaks["P2"] = [p for p in peaks["P2"] if p <= peaks["P3"][0]]
             # P2: ostatni, a jeśli dokładnie 3 → środkowy
-            if len(peaks["P2"]) == 3:
-                peaks["P2"] = middle_peak(peaks["P2"])
-            else:
-                peaks["P2"] = last_peak(peaks["P2"])
-                
+            # if len(peaks["P2"]) == 3:
+            peaks["P2"] = middle_peak(peaks["P2"]) # OK
+            # else:
+                # peaks["P2"] = first_peak(peaks["P2"])
+                # 
             # P1: pierwszy
-            peaks["P1"] = first_peak(peaks["P1"])
+            peaks["P1"] = middle_peak(peaks["P1"])
             
             # jeśli P2 i P3 zbyt blisko → usuń oba
             if peaks["P2"] and peaks["P3"]:
@@ -340,11 +555,11 @@ def postprocess_peaks(results_combined):
         # -------- Class3 ---------
         # =========================
         elif class_id == "Class3":
-            # P3: średnia
-            peaks["P3"] = last_peak(peaks["P3"])
+            # P3: średnia DRUGI SPRAWDZONE OK
+            peaks["P3"] = second_peak(peaks["P3"])
 
             # P1: średnia
-            peaks["P1"] = first_peak(peaks["P1"])
+            peaks["P1"] = second_peak(peaks["P1"])
 
             # P2: pierwszy
             peaks["P2"] = first_peak(peaks["P2"])
@@ -369,14 +584,13 @@ def postprocess_peaks(results_combined):
         # =========================
         elif class_id == "Class4":
             # tylko P2, jeśli kilka → średnia
-            peaks["P2"] = middle_peak(peaks["P2"])
+            peaks["P2"] = first_peak(peaks["P2"])
             peaks["P1"] = []
             peaks["P3"] = []
             
         item["peaks_detected"] = _finalize_peaks(peaks)
 
     return results_post
-
 
 # def compute_peak_metrics_all_peaks(detection_results, class_name):
 #     """
@@ -807,6 +1021,117 @@ def prepare_metrics_df(df, version_name):
     return out
 
 
+# def closest_peak_position_stats(results_new):
+#     """
+#     Analiza: gdy wykryto >1 pik, który (kolejność) jest najbliżej referencji.
+    
+#     Zwraca DataFrame:
+#         Class | Peak | Position | Count | Fraction
+#     """
+#     records = []
+
+#     for item in results_new:
+#         class_id = item["class"]
+#         peak = item["peak"]
+#         detected = item["peaks_detected"].get(peak, [])
+#         ref_idx = item["peaks_ref"].get(peak)
+
+#         if ref_idx is None or not isinstance(detected, list):
+#             continue
+
+#         if len(detected) <= 1:
+#             continue  # interesują nas tylko przypadki z wieloma detekcjami
+
+#         sig = item["signal_raw"]
+#         t = sig.iloc[:, 0].values
+
+#         # odległości czasowe
+#         distances = [abs(t[d] - t[ref_idx]) for d in detected]
+#         closest_pos = int(np.argmin(distances))  # 0 = pierwszy, 1 = drugi, ...
+
+#         records.append({
+#             "Class": class_id,
+#             "Peak": peak,
+#             "Position": closest_pos + 1  # 1-based (czytelniej do pracy)
+#         })
+
+#     df = pd.DataFrame(records)
+
+#     summary = (
+#         df
+#         .groupby(["Class", "Peak", "Position"])
+#         .size()
+#         .reset_index(name="Count")
+#     )
+
+#     summary["Fraction"] = (
+#         summary["Count"]
+#         / summary.groupby(["Class", "Peak"])["Count"].transform("sum")
+#     )
+
+#     return summary.sort_values(["Class", "Peak", "Position"])
+
+def closest_peak_position_stats(results_new, tol=3):
+    """
+    Analiza: gdy wykryto >1 pik, który (kolejność) jest najbliżej referencji,
+    z ignorowaniem różnic <= tol próbek.
+
+    Zwraca DataFrame:
+        Class | Peak | Position | Count | Fraction
+    """
+    records = []
+
+    for item in results_new:
+        class_id = item["class"]
+        peak = item["peak"]
+        detected = item["peaks_detected"].get(peak, [])
+        ref_idx = item["peaks_ref"].get(peak)
+
+        if ref_idx is None or not isinstance(detected, list):
+            continue
+
+        if len(detected) <= 1:
+            continue
+
+        # odległości w próbkach (bez czasu ciągłego)
+        distances = [abs(d - ref_idx) for d in detected]
+
+        # sortowanie wg odległości
+        order = np.argsort(distances)
+        best = order[0]
+        second = order[1]
+
+        # ignoruj kosmetyczne różnice
+        if abs(distances[best] - distances[second]) <= tol:
+            continue
+
+        records.append({
+            "Class": class_id,
+            "Peak": peak,
+            "Position": int(best) + 1  # 1-based
+        })
+
+    df = pd.DataFrame(records)
+
+    if df.empty:
+        return df
+
+    summary = (
+        df
+        .groupby(["Class", "Peak", "Position"])
+        .size()
+        .reset_index(name="Count")
+    )
+
+    summary["Fraction"] = (
+        summary["Count"]
+        / summary.groupby(["Class", "Peak"])["Count"].transform("sum")
+    )
+
+    return summary.sort_values(["Class", "Peak", "Position"])
+
+
+
 """
 Class1 P1:
     a) avg, concave (min blad) 
@@ -958,7 +1283,7 @@ datasets_dict = {
 }
 
 
-out_dir = "koncowe_rysunki_3_01"
+out_dir = "rysunki_4_01"
 # %% ================= DRUGI ZESTAW (IT2) ====================
 # results_a_it2 = run_variant(
 #     df_variant_a,
@@ -1068,17 +1393,26 @@ df_pogladowe_new_pp = pd.DataFrame([
     for d in results_combined_new_pp])
 
 
-classes = ["Class1", "Class2", "Class3", "Class4"]
+classes = ["Class1", 
+           "Class2", 
+           "Class3", "Class4"
+           ]
 
 # for cls in classes:
-#     plot_files_in_class(results_combined_new_pp, cls)
+#     plot_files_in_class(results_combined_new, cls)
 
 df_metrics_pre = pd.concat([compute_metrics_pre_postproc(results_new, cls) for cls in classes], ignore_index=True)
 df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, cls) for cls in classes], ignore_index=True)
 # df_metrics_pre.to_csv("02_01_metrics_pre.csv", index=False)
 # df_metrics_post.to_csv("02_01metrics_post.csv", index=False)
 
+
+
 mean_dxy = df_metrics_post["Mean_XY_Error"].mean()
+
+mean_dx = df_metrics_post['Mean_X_Error'].mean()
+
+mean_dy = df_metrics_post['Mean_Y_Error'].mean()
 
 # Sumowanie TP, FP, FN po wszystkich wierszach
 TP_total = df_metrics_post['TP'].sum()
@@ -1092,9 +1426,11 @@ sensitivity = 100 * TP_total / (TP_total + FN_total) if (TP_total + FN_total) > 
 precision = 100 * TP_total / (TP_total + FP_total) if (TP_total + FP_total) > 0 else np.nan
 
 print(f"Średni błąd: {mean_dxy:.3f}")
+print(f"Średni błąd: {mean_dx:.3f}")
+print(f"Średni błąd: {mean_dy:.3f}")
 print(f"Czułość (Sensitivity %): {sensitivity:.2f}%")
 print(f"Precyzja (Precision %): {precision:.2f}%")
-
+"""
 
 # sumowanie wartości TP, FP, FN
 TP_total = df_metrics_post['TP'].sum()
@@ -1124,6 +1460,8 @@ print("PRECYZJA / PRECISION:")
 print(f"Precision = TP / (TP + FP) * 100%")
 print(f"Precision = {TP_total} / ({TP_total} + {FP_total}) * 100%")
 print(f"Precision = {precision:.2f}%")
+
+"""
 
 # plot_selected_files(
 #     detection_results=results_combined_new_pp,
@@ -1172,22 +1510,22 @@ print(f"Precision = {precision:.2f}%")
 # plt.savefig("rysunki/final_detection_examples_k4.pdf", 
 #             bbox_inches=None)
 
-# classes = ["Class1", "Class2", "Class3",]
-# for class_id in classes:
-#     # plot_upset_classic_postproc_new(results_combined_new, class_id)
-#     plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
-#     plt.savefig(
-#         os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
-#         format="pdf",
-#         bbox_inches="tight"
-#     )
+classes = ["Class1", "Class2", "Class3"]
+for class_id in classes:
+    # plot_upset_classic_postproc_new(results_combined_new, class_id)
+    plot_upset_classic_postproc_new(results_combined_new_pp, class_id)
+    plt.savefig(
+        os.path.join(out_dir, f"upset_{class_id}_post.pdf"),
+        format="pdf",
+        bbox_inches="tight"
+    )
 
-# plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
-# plt.savefig(
-#     os.path.join(out_dir, "pie_Class4_P2_post.pdf"),
-#     format="pdf",
-#     bbox_inches="tight"
-# )
+plot_peak_detection_pie_new(results_combined_new_pp, "Class4")
+plt.savefig(
+    os.path.join(out_dir, "pie_Class4_P2_post.pdf"),
+    format="pdf",
+    bbox_inches="tight"
+)
 
 
 results_new_simpl = run_variant(
@@ -1199,7 +1537,7 @@ results_new_simpl = run_variant(
 
 # rows = []
 
-# for item in results_new_simpl:
+# for item in results_new:
 #     class_id = item["class"]
 #     file_name = item["file"]
     
@@ -1260,9 +1598,15 @@ df_pogladowe_new_s_pp = pd.DataFrame([
     }
     for d in results_combined_new_s_pp])
 
-# classes = ["Class1", "Class2", "Class3", "Class4"]
+classes = ["Class1", "Class2", "Class3",
+           "Class4"
+           ]
 # for cls in classes:
-#     plot_files_in_class(results_combined_new_s_pp, cls)
+#     plot_files_in_class(results_combined_new, cls)
+
+# df_closest = closest_peak_position_stats(results_new)
+# print(df_closest)
+
 
 
 df_metrics_pre_s = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
@@ -1270,63 +1614,60 @@ df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_p
 # df_metrics_pre.to_csv("27_12_metrics_pre_simpl.csv", index=False)
 # df_metrics_post.to_csv("27_12_metrics_post_simpl.csv", index=False)
 
+# ========== JEDEN PLIK WYNIKOWY ==================
 
-# df_fit_pre  = prepare_metrics_df(
-#     df_metrics_pre,
-#     "dopasowany – przed postprocessingiem"
-# )
+df_fit_pre  = prepare_metrics_df(
+    df_metrics_pre,
+    "dopasowany – przed postprocessingiem"
+)
 
-# df_fit_post = prepare_metrics_df(
-#     df_metrics_post,
-#     "dopasowany – po postprocessingu"
-# )
+df_fit_post = prepare_metrics_df(
+    df_metrics_post,
+    "dopasowany – po postprocessingu"
+)
 
-# df_s_pre = prepare_metrics_df(
-#     df_metrics_pre_s,
-#     "uproszczony – przed postprocessingiem"
-# )
+df_s_pre = prepare_metrics_df(
+    df_metrics_pre_s,
+    "uproszczony – przed postprocessingiem"
+)
 
-# df_s_post = prepare_metrics_df(
-#     df_metrics_post_s,
-#     "uproszczony – po postprocessingu"
-# )
+df_s_post = prepare_metrics_df(
+    df_metrics_post_s,
+    "uproszczony – po postprocessingu"
+)
 
-# df_metrics_all = pd.concat(
-#     [df_fit_pre, df_fit_post, df_s_pre, df_s_post],
-#     ignore_index=True
-# )
+df_metrics_all = pd.concat(
+    [df_fit_pre, df_fit_post, df_s_pre, df_s_post],
+    ignore_index=True
+)
 
-# df_metrics_all = df_metrics_all[
-#     ["Class", "Peak", "Version",
-#      "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error",
-#      "TP", "FP", "FN"]
-# ]
+df_metrics_all = df_metrics_all[
+    ["Class", "Peak", "Version",
+     "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error",
+     "TP", "FP", "FN"]
+]
 
-# version_order = [
-#     "dopasowany – przed postprocessingiem",
-#     "dopasowany – po postprocessingu",
-#     "uproszczony – przed postprocessingiem",
-#     "uproszczony – po postprocessingu"
-# ]
+version_order = [
+    "dopasowany – przed postprocessingiem",
+    "dopasowany – po postprocessingu",
+    "uproszczony – przed postprocessingiem",
+    "uproszczony – po postprocessingu"
+]
 
-# df_metrics_all["Version"] = pd.Categorical(
-#     df_metrics_all["Version"],
-#     categories=version_order,
-#     ordered=True
-# )
+df_metrics_all["Version"] = pd.Categorical(
+    df_metrics_all["Version"],
+    categories=version_order,
+    ordered=True
+)
 
 
-# df_metrics_all = df_metrics_all.sort_values(
-#     ["Class", "Peak", "Version"]
-# ).reset_index(drop=True)
+df_metrics_all = df_metrics_all.sort_values(
+    ["Class", "Peak", "Version"]
+).reset_index(drop=True)
 
-# df_metrics_all.to_csv("newk3p1_metrics_2_01.csv", index=False)
+df_metrics_all.to_csv("NEW_metrics_4_01.csv", index=False)
 
-# # df_metrics_all.to_latex(
-#     "metrics_all_versions.tex",
-#     index=False,
-#     float_format="%.3f"
-# )
+
 
 
 # =========== WILCOXON ====================
@@ -1437,22 +1778,22 @@ df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_p
 # for cls in classes:
 #     plot_files_in_class(results_combined_new_s_pp, cls)
 
-# classes = ["Class1", "Class2", "Class3"]
-# for class_id in classes:
-#     # plot_upset_classic_postproc(results_combined_new_s, class_id)
-#     plot_upset_classic_postproc_new(results_combined_new_s_pp, class_id)
-#     # plt.savefig(
-#     #     os.path.join(out_dir, f"upset_{class_id}_post_simpl.pdf"),
-#     #     format="pdf",
-#     #     bbox_inches="tight"
-#     # )
+classes = ["Class1", "Class2", "Class3"]
+for class_id in classes:
+    # plot_upset_classic_postproc(results_combined_new_s, class_id)
+    plot_upset_classic_postproc_new(results_combined_new_s_pp, class_id)
+    plt.savefig(
+        os.path.join(out_dir, f"upset_{class_id}_post_simpl.pdf"),
+        format="pdf",
+        bbox_inches="tight"
+    )
     
-# plot_peak_detection_pie_new(results_combined_new_s_pp, "Class4")
-# plt.savefig(
-#     os.path.join(out_dir, "pie_Class4_P2_post_simpl.pdf"),
-#     format="pdf",
-#     bbox_inches="tight"
-# )
+plot_peak_detection_pie_new(results_combined_new_s_pp, "Class4")
+plt.savefig(
+    os.path.join(out_dir, "pie_Class4_P2_post_simpl.pdf"),
+    format="pdf",
+    bbox_inches="tight"
+)
 
 # # wariant a
 # df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
@@ -1486,10 +1827,45 @@ df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_p
 
 
 # plot_signal_pre_post(
-#     results_combined_a_it2,
-#     results_combined_a_it2_pp,
-#     file_name="Class1_example_0050"
+#     results_combined_new,
+#     results_combined_new_pp,
+#     file_name="Class2_it2_example_0048"
 # )
+
+# plt.savefig("rysunki/pp_example_1.pdf", 
+#             bbox_inches=None)
+
+# plot_signal_pre_post(
+#     results_combined_new,
+#     results_combined_new_pp,
+#     file_name="Class1_it2_example_0202"
+# )
+
+# plt.savefig("rysunki/pp_example_2.pdf", 
+#             bbox_inches=None)
+
+
+# # plot_signal_pre_post(
+# #     results_combined_new,
+# #     results_combined_new_pp,
+# #     file_name="Class2_it2_example_0150"
+# # )
+
+# # plot_signal_pre_post(
+# #     results_combined_new,
+# #     results_combined_new_pp,
+# #     file_name="Class3_it2_example_0162"
+# # )
+
+# plot_signal_pre_post(
+#     results_combined_new,
+#     results_combined_new_pp,
+#     file_name="Class3_it2_example_0020"
+# )
+
+# plt.savefig("rysunki/pp_example_3.pdf", 
+#             bbox_inches=None)
+
 
 # plot_signal_with_concave_areas(it1, "Class1_example_0028")
 
