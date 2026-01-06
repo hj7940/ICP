@@ -888,189 +888,6 @@ def compute_metrics_postproc(dataset, class_name):
     return pd.DataFrame(metrics_list)
 
 
-# =========================
-# 1. Funkcja do obliczania błędów XY dla pojedynczego piku
-# =========================
-def compute_dxy_per_peak(results_combined, expected_peaks=("P1","P2","P3")):
-    """
-    Zwraca DataFrame z błędami XY dla każdego pliku i piku.
-    
-    results_combined: lista słowników po postprocess
-    expected_peaks: tuple oczekiwanych pików
-    """
-    records = []
-    for item in results_combined:
-        file_name = item["file"]
-        class_id = item.get("class", "Unknown")
-        sig = item["signal_raw"]
-        t = sig.iloc[:,0].values
-        y = sig.iloc[:,1].values
-        for peak in expected_peaks:
-            ref_idx = item["peaks_ref"].get(peak)
-            detected_val = item["peaks_detected"].get(peak)
-            
-            # obsługa braków
-            if ref_idx is None or detected_val is None or (isinstance(detected_val,float) and np.isnan(detected_val)):
-                dxy = np.nan
-            else:
-                dx = abs(t[detected_val] - t[ref_idx])
-                dy = abs(y[detected_val] - y[ref_idx])
-                dxy = np.sqrt(dx**2 + dy**2)
-            
-            records.append({
-                "file": file_name,
-                "class": class_id,
-                "peak": peak,
-                "dxy": dxy
-            })
-    return pd.DataFrame(records)
-
-# =========================
-# 2. Funkcja do łączenia dwóch wariantów w pary
-# =========================
-def merge_dxy_for_wilcoxon(df1, df2):
-    # Dodajemy "class" do listy kluczy (on=)
-    merged = pd.merge(df1, df2, on=["file", "class", "peak"], suffixes=("_new","_new_simpl"))
-    merged = merged.dropna(subset=["dxy_new","dxy_new_simpl"])
-    return merged
-
-# =========================
-# 3. Funkcja do wykonania testu Wilcoxona dla wszystkich pików
-# =========================
-# def wilcoxon_test_all_peaks(merged_df):
-#     """
-#     merged_df: DataFrame z kolumnami ['file','peak','dxy_new','dxy_new_simpl']
-#     Zwraca DataFrame z wynikami testu dla każdego piku.
-#     """
-#     results = []
-#     for peak in merged_df["peak"].unique():
-#         sub = merged_df[merged_df["peak"]==peak]
-#         if len(sub) < 5:  # zbyt mało danych
-#             p_value = np.nan
-#             stat = np.nan
-#         else:
-#             stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"])
-#         results.append({
-#             "peak": peak,
-#             "n_pairs": len(sub),
-#             "wilcoxon_stat": stat,
-#             "p_value": p_value
-#         })
-    # return pd.DataFrame(results)
-    
-def wilcoxon_test_by_class_and_peak(merged_df):
-    """
-    merged_df: DataFrame z kolumnami ['file', 'class', 'peak', 'dxy_new', 'dxy_new_simpl']
-    """
-    results = []
-    # Grupowanie po dwóch kolumnach: klasie i piku
-    for (class_id, peak), sub in merged_df.groupby(["class", "peak"]):
-        
-        # Obliczamy różnice
-        diff = sub["dxy_new"] - sub["dxy_new_simpl"]
-        
-        # Sprawdzamy, czy wszystkie różnice są zerem (identyczne wyniki)
-        if (diff == 0).all():
-            p_value = 1.0  # identyczne rozkłady
-            stat = 0.0
-        elif len(sub) < 5:
-            p_value = np.nan
-            stat = np.nan
-        else:
-            # zero_method="pratt" pomaga, gdy jest dużo identycznych par
-            try:
-                stat, p_value = wilcoxon(sub["dxy_new"], sub["dxy_new_simpl"], zero_method="pratt")
-            except:
-                stat, p_value = np.nan, np.nan
-
-        results.append({
-            "class": class_id,
-            "peak": peak,
-            "n_pairs": len(sub),
-            "wilcoxon_stat": stat,
-            "p_value": p_value
-        })
-    return pd.DataFrame(results)
-
-# =========================
-# 4. Kompletny pipeline
-# =========================
-def run_wilcoxon_pipeline(results_new_pp, results_new_s_pp, expected_peaks=("P1","P2","P3")):
-    df_new = compute_dxy_per_peak(results_new_pp, expected_peaks)
-    df_simpl = compute_dxy_per_peak(results_new_s_pp, expected_peaks)
-    merged = merge_dxy_for_wilcoxon(df_new, df_simpl)
-    wilcoxon_results = wilcoxon_test_by_class_and_peak(merged)
-    return wilcoxon_results
-#, df_new, df_simpl
-
-
-def prepare_metrics_df(df, version_name):
-    cols = [
-        "Class",
-        "Peak",
-        "Mean_X_Error",
-        "Mean_Y_Error",
-        "Mean_XY_Error",
-        "TP",
-        "FP",
-        "FN",
-    ]
-    
-    out = df[cols].copy()
-    out["Version"] = version_name
-    return out
-
-
-# def closest_peak_position_stats(results_new):
-#     """
-#     Analiza: gdy wykryto >1 pik, który (kolejność) jest najbliżej referencji.
-    
-#     Zwraca DataFrame:
-#         Class | Peak | Position | Count | Fraction
-#     """
-#     records = []
-
-#     for item in results_new:
-#         class_id = item["class"]
-#         peak = item["peak"]
-#         detected = item["peaks_detected"].get(peak, [])
-#         ref_idx = item["peaks_ref"].get(peak)
-
-#         if ref_idx is None or not isinstance(detected, list):
-#             continue
-
-#         if len(detected) <= 1:
-#             continue  # interesują nas tylko przypadki z wieloma detekcjami
-
-#         sig = item["signal_raw"]
-#         t = sig.iloc[:, 0].values
-
-#         # odległości czasowe
-#         distances = [abs(t[d] - t[ref_idx]) for d in detected]
-#         closest_pos = int(np.argmin(distances))  # 0 = pierwszy, 1 = drugi, ...
-
-#         records.append({
-#             "Class": class_id,
-#             "Peak": peak,
-#             "Position": closest_pos + 1  # 1-based (czytelniej do pracy)
-#         })
-
-#     df = pd.DataFrame(records)
-
-#     summary = (
-#         df
-#         .groupby(["Class", "Peak", "Position"])
-#         .size()
-#         .reset_index(name="Count")
-#     )
-
-#     summary["Fraction"] = (
-#         summary["Count"]
-#         / summary.groupby(["Class", "Peak"])["Count"].transform("sum")
-#     )
-
-#     return summary.sort_values(["Class", "Peak", "Position"])
-
 def closest_peak_position_stats(results_new, tol=3):
     """
     Analiza: gdy wykryto >1 pik, który (kolejność) jest najbliżej referencji,
@@ -1132,92 +949,179 @@ def closest_peak_position_stats(results_new, tol=3):
 
 
 
-"""
-Class1 P1:
-    a) avg, concave (min blad) 
-    b) full, concave (max. signals w/ peaks)
-    
-Class1 P2:
-    a) smooth 4Hz, avg, curvature (min blad) 
-    b) avg, curvature (max signals w/ peaks)   
-    ----------- ZMIANA ----------------------
-        a,b) smooth 4Hz, avg, curvature 
-    
-Class1 P3:
-    a,b) smooth 4Hz, full, concave   
 
-    
-Class2 P1:
-    a) smooth 3Hz, avg, hilbert (min blad, 249)
-    b) smooth 3Hz, avg, wavelet (podobny, 250) SAME_AVG!!!!!!!!!
-    -------- ZMIANA -------------------
-        a,b) smooth 3Hz, avg, hilbert
-    
-Class2 P2:
-    a) whiskers, wavelet (min blad)
-    b) smooth 4Hz, full, curvature (max sig w/ peaks)
-    ----------- ZMIANA -------------
-    a) smooth 4Hz, whiskers, line distance (vertical lub perpendicular)
-    b) smooth 4Hz, full, line distance (vertical lub perpendicular)
-    
-Class2 P3:
-    a) avg, curvature (min blad)
-    b) whiskers, hilbert (doslownie o 2 wiecej sig w/ peaks)
-    ----------- ZMIANA -----------
-    a) full, hilbert
-    b) pm3, hilbert
-    
+def wilcoxon_safe(x, y):
+    # jeśli wszystkie różnice są zerowe, p-value = 1.0
+    if np.all(x == y):
+        return 0.0, 1.0
+    else:
+        try:
+            stat, p = wilcoxon(x, y, alternative="two-sided")
+            return stat, p
+        except ValueError:
+            return np.nan, np.nan
 
-Class3 P1:
-    a,b) smooth 4Hz, full, wavelet LUB smooth 4Hz, whiskers, wavelet // (AVG)
-    
-Class3 P2:
-    a) whiskers, concave (min blad)
-    b) smooth 4Hz, full, concave (max sig)
-    ----------- ZMIANA ------------
-    a) smooth 4Hz, avg, hilbert // <----- tylko b?
-    b) smooth 4Hz, avg, wavelet
 
-Class3 P3:
-    a,b) none, modified scholkmann 1/2 99 LUB none, modified scholkmann 1 99
-    ------------ ZMIANA ------------
-    a) full modified scholkmann 1/2 99
-    b) none modified scholkmann 1/2 99
+def build_error_dataframe(results_postproc):
+    """
+    Zwraca DataFrame:
+    Filename | Class | Peak | Mean_XY_Error
+    Jedna obserwacja = (plik, pik)
+    """
 
-Class4 P2:
-    a,b) smooth 4Hz, none, modified scholkmann 1/2 99 LUB smooth 4Hz, none, modified scholkmann 1 99
-    ---------- ZMIANA ------------
-    a) full, conncave d2x=0,002
-    b) pm3, concave d2x=0,002
+    rows = []
+
+    for item in results_postproc:
+        file = item["file"]
+        cls = item["class"]
+        sig = item["signal_raw"]
+        t = sig.iloc[:, 0].values
+        y = sig.iloc[:, 1].values
+
+        for peak, det in item["peaks_detected"].items():
+            ref = item["peaks_ref"].get(peak)
+
+            if ref is None or det is None or (isinstance(det, float) and np.isnan(det)):
+                continue
+
+            dx = abs(t[det] - t[ref])
+            dy = abs(y[det] - y[ref])
+            dxy = np.sqrt(dx**2 + dy**2)
+
+            rows.append({
+                "Filename": file,
+                "Class": cls,
+                "Peak": peak,
+                "Mean_XY_Error": dxy
+            })
+
+    return pd.DataFrame(rows)
+
+
+
+def prepare_paired_dataset(
+    df_fitted,
+    df_simplified,
+    value_col="Mean_XY_Error",
+    id_cols=("Filename", "Class", "Peak")
+):
+    """
+    Łączy wyniki dwóch wersji algorytmu w pary (plik, pik),
+    automatycznie usuwając obserwacje niekompletne.
+    """
+
+    df_fitted = df_fitted[list(id_cols) + [value_col]].copy()
+    df_simplified = df_simplified[list(id_cols) + [value_col]].copy()
+
+    df_fitted = df_fitted.rename(columns={value_col: "Error_fitted"})
+    df_simplified = df_simplified.rename(columns={value_col: "Error_simplified"})
+
+    df_merged = pd.merge(
+        df_fitted,
+        df_simplified,
+        on=list(id_cols),
+        how="inner"
+    )
+
+    return df_merged
+
+def wilcoxon_option_A(df_pairs):
+    """
+    Wykonuje test Wilcoxona na wszystkich parach (plik, pik)
+    bez rozdzielania na klasy.
+    """
+
+    errors_fitted = df_pairs["Error_fitted"]
+    errors_simplified = df_pairs["Error_simplified"]
+
+    stat, p_value = wilcoxon_safe(
+        errors_fitted,
+        errors_simplified,
+        # alternative="two-sided"
+    )
+
+    stats = {
+        "N_total_pairs": len(df_pairs),
+        
+        "Mean_fitted": np.mean(errors_fitted),
+        "Median_fitted": np.median(errors_fitted),
+        "Q1_fitted": np.percentile(errors_fitted, 25),
+        "Q3_fitted": np.percentile(errors_fitted, 75),
+        
+        "Mean_simplified": np.mean(errors_simplified),
+        "Median_simplified": np.median(errors_simplified),
+        "Q1_simplified": np.percentile(errors_simplified, 25),
+        "Q3_simplified": np.percentile(errors_simplified, 75),
+        "Wilcoxon_stat": stat,
+        "p_value": p_value
+    }
+
+    return stats
+
+def wilcoxon_by_class_and_peak(df_pairs):
+    """
+    Wilcoxon osobno dla każdej klasy i piku.
+    """
+
+    results = []
+
+    for (cls, peak), group in df_pairs.groupby(["Class", "Peak"]):
+        if len(group) < 5:
+            continue  # zbyt mało par – brak sensu statystycznego
+
+        stat, p = wilcoxon_safe(
+            group["Error_fitted"],
+            group["Error_simplified"],
+            # alternative="two-sided"
+        )
+
+        results.append({
+            "Class": cls,
+            "Peak": peak,
+            "N_used": len(group),
+            "Mean_fitted": np.mean(group["Error_fitted"]),
+            "Median_fitted": np.median(group["Error_fitted"]),
+            "Q1_fitted": np.percentile(group["Error_fitted"], 25),
+            "Q3_fitted": np.percentile(group["Error_fitted"], 75),
+            "Mean_simplified": np.mean(group["Error_simplified"]),
+            "Median_simplified": np.median(group["Error_simplified"]),
+            "Q1_simplified": np.percentile(group["Error_simplified"], 25),
+            "Q3_simplified": np.percentile(group["Error_simplified"], 75),
+            "p_value": p
+        })
+
+    return pd.DataFrame(results)
+
+def add_summary_row(df_by_class, df_pairs):
+    """
+    Dodaje ostatni wiersz sumaryczny do tabeli df_by_class,
+    z uwzględnieniem średniego błędu.
+    """
+    # Wilcoxon na wszystkich parach
+    summary_stats = wilcoxon_option_A(df_pairs)
     
-DALSZE DZIALANIA:
-Class1: 
-    - jesli sa dwa P3 to wziac tylko pozniejszy i usunac pierwszy (np. [80, 96] -> [96])
-    - jesli dwa P2 to pierwszy
-    - jesli P2 i P3 sa w odleglosci mniejszej niz 3 probki to usun P2 i P3 (zostaw puste listy)
-    - jesli kilka P1 to srednia 
-    PO WYKONANIU TYCH OPERCAJI:
-    - jesli nie jest spelniony warunek P1<P2<P3 (na osi X!) to usun P1, P2 i P3
-    (jesli P1>P2 ale P3 jest najpozniejsze to zostaw P3)
+    # Obliczamy średnie błędy po wszystkich parach
+    mean_fitted = df_pairs["Error_fitted"].mean()
+    mean_simplified = df_pairs["Error_simplified"].mean()
     
-Class2:
-    - jesli jest kilka P3 to srednia
-    - jesli jest kilka P2 to wziac pierwszy
-    - jesli sa dwa/kilka P1 to wziac pierwszy
-    PO WYKONANIU TYCH OPERCAJI:
-    - jesli nie jest spelniony warunek P1<P2<P3 (na osi X!) to usun P1, P2 i P3
-    (jesli P1>P2 ale P3 jest najpozniejsze to zostaw P3)
+    summary_row = {
+        "Class": "ALL",
+        "Peak": "ALL",
+        "N_used": summary_stats["N_total_pairs"],
+        "Mean_fitted": mean_fitted,
+        "Median_fitted": summary_stats["Median_fitted"],
+        "Q1_fitted": summary_stats["Q1_fitted"],
+        "Q3_fitted": summary_stats["Q3_fitted"],
+        "Mean_simplified": mean_simplified,
+        "Median_simplified": summary_stats["Median_simplified"],
+        "Q1_simplified": summary_stats["Q1_simplified"],
+        "Q3_simplified": summary_stats["Q3_simplified"],
+        "p_value": summary_stats["p_value"]
+    }
     
-Class3:
-    - jesli jest kilka P3 to srednia
-    - jesli jest kilka P1 to srednia
-    - jesli jest kilka P2 to wziac pierwszy
-    - jesli P2 i P3 sa w odleglosci mniejszej niz 3 probki to usun P3
-    
-Class4:
-    - jesli jest kilka P2 to srednia
-    
-"""
+    return pd.concat([df_by_class, pd.DataFrame([summary_row])], ignore_index=True)
+
+
 
 # --- wariant NOWY ---
 df_new = pd.DataFrame([
@@ -1284,42 +1188,7 @@ datasets_dict = {
 
 
 out_dir = "rysunki_4_01"
-# %% ================= DRUGI ZESTAW (IT2) ====================
-# results_a_it2 = run_variant(
-#     df_variant_a,
-#     datasets_dict=datasets_dict,
-#     ranges_all_time=ranges_all_time,
-#     ranges_all_amps=ranges_all_amps)
 
-# results_combined_a_it2 = combine_peaks_by_file(results_a_it2)
-# results_combined_a_it2_pp = postprocess_peaks(results_combined_a_it2)
-
-# df_pogladowe_a_it2_pp = pd.DataFrame([
-#     {
-#         "file": d["file"],
-#         "peaks_ref": d["peaks_ref"],
-#         "peaks_detected": d["peaks_detected"],
-# }
-#     for d in results_combined_a_it2_pp])
-
-
-
-# results_b_it2 = run_variant(
-#     df_variant_b,
-#     datasets_dict=datasets_dict,
-#     ranges_all_time=ranges_all_time,
-#     ranges_all_amps=ranges_all_amps)
-
-# results_combined_b_it2 = combine_peaks_by_file(results_b_it2)
-# results_combined_b_it2_pp = postprocess_peaks(results_combined_b_it2)
-
-# df_pogladowe_b_it2_pp = pd.DataFrame([
-#     {
-#         "file": d["file"],
-#         "peaks_ref": d["peaks_ref"],
-#         "peaks_detected": d["peaks_detected"],
-#     }
-#     for d in results_combined_b_it2_pp])
 
 # %% ============== OSTATECZNE STARCIE ===============
 results_new = run_variant(
@@ -1407,45 +1276,29 @@ df_metrics_post = pd.concat([compute_metrics_postproc(results_combined_new_pp, c
 # df_metrics_post.to_csv("02_01metrics_post.csv", index=False)
 
 
+# mean_dxy = df_metrics_post["Mean_XY_Error"].mean()
 
-mean_dxy = df_metrics_post["Mean_XY_Error"].mean()
+# mean_dx = df_metrics_post['Mean_X_Error'].mean()
 
-mean_dx = df_metrics_post['Mean_X_Error'].mean()
+# mean_dy = df_metrics_post['Mean_Y_Error'].mean()
 
-mean_dy = df_metrics_post['Mean_Y_Error'].mean()
+# # Sumowanie TP, FP, FN po wszystkich wierszach
+# TP_total = df_metrics_post['TP'].sum()
+# FP_total = df_metrics_post['FP'].sum()
+# FN_total = df_metrics_post['FN'].sum()
 
-# Sumowanie TP, FP, FN po wszystkich wierszach
-TP_total = df_metrics_post['TP'].sum()
-FP_total = df_metrics_post['FP'].sum()
-FN_total = df_metrics_post['FN'].sum()
+# # Czułość (sensitivity / recall)
+# sensitivity = 100 * TP_total / (TP_total + FN_total) if (TP_total + FN_total) > 0 else np.nan
 
-# Czułość (sensitivity / recall)
-sensitivity = 100 * TP_total / (TP_total + FN_total) if (TP_total + FN_total) > 0 else np.nan
+# # Precyzja (precision)
+# precision = 100 * TP_total / (TP_total + FP_total) if (TP_total + FP_total) > 0 else np.nan
 
-# Precyzja (precision)
-precision = 100 * TP_total / (TP_total + FP_total) if (TP_total + FP_total) > 0 else np.nan
-
-print(f"Średni błąd: {mean_dxy:.3f}")
-print(f"Średni błąd: {mean_dx:.3f}")
-print(f"Średni błąd: {mean_dy:.3f}")
-print(f"Czułość (Sensitivity %): {sensitivity:.2f}%")
-print(f"Precyzja (Precision %): {precision:.2f}%")
+# print(f"Średni błąd: {mean_dxy:.3f}")
+# print(f"Średni błąd: {mean_dx:.3f}")
+# print(f"Średni błąd: {mean_dy:.3f}")
+# print(f"Czułość (Sensitivity %): {sensitivity:.2f}%")
+# print(f"Precyzja (Precision %): {precision:.2f}%")
 """
-
-# sumowanie wartości TP, FP, FN
-TP_total = df_metrics_post['TP'].sum()
-FP_total = df_metrics_post['FP'].sum()
-FN_total = df_metrics_post['FN'].sum()
-
-# średni błąd XY uśredniony między pikami
-mean_dxy = df_metrics_post['Mean_XY_Error'].mean()
-
-# czułość / sensitivity
-sensitivity = 100 * TP_total / (TP_total + FN_total)
-
-# precyzja / precision
-precision = 100 * TP_total / (TP_total + FP_total)
-
 # wyświetlenie krok po kroku
 print("ŚREDNI BŁĄD XY (uśredniony między pikami):")
 print(f"Mean_dxy = sum(Mean_XY_Error dla wszystkich pików) / liczba pików")
@@ -1470,7 +1323,7 @@ print(f"Precision = {precision:.2f}%")
 #                    "Class1_it2_example_0083",
 #                    "Class1_it2_example_0080",
 #                    "Class1_it2_example_0109"],
-#     ncols=2
+#     # ncols=2
 # )
 # plt.savefig("rysunki/final_detection_examples_k1.pdf", 
 #             bbox_inches=None)
@@ -1481,7 +1334,7 @@ print(f"Precision = {precision:.2f}%")
 #     files_to_plot=["Class2_it2_example_0022", 
 #                    "Class2_it2_example_0002",
 #                    "Class2_it2_example_0058"],
-#     ncols=3
+#     # ncols=3
 # )
 # plt.savefig("rysunki/final_detection_examples_k2.pdf", 
 #             bbox_inches=None)
@@ -1492,7 +1345,7 @@ print(f"Precision = {precision:.2f}%")
 #     files_to_plot=["Class3_it2_example_0004", 
 #                    "Class3_it2_example_0105",
 #                    "Class3_it2_example_0047"],
-#     ncols=3
+#     # ncols=3
 # )
 # plt.savefig("rysunki/final_detection_examples_k3.pdf", 
 #             bbox_inches=None)
@@ -1505,11 +1358,12 @@ print(f"Precision = {precision:.2f}%")
 #                    "Class4_it2_example_0024",
 #                    "Class4_it2_example_0019"],
     
-#     ncols=3
+#     # ncols=3
 # )
 # plt.savefig("rysunki/final_detection_examples_k4.pdf", 
 #             bbox_inches=None)
 
+"""
 classes = ["Class1", "Class2", "Class3"]
 for class_id in classes:
     # plot_upset_classic_postproc_new(results_combined_new, class_id)
@@ -1527,7 +1381,7 @@ plt.savefig(
     bbox_inches="tight"
 )
 
-
+"""
 results_new_simpl = run_variant(
     df_new_simplified,
     datasets_dict=datasets_dict,
@@ -1608,7 +1462,6 @@ classes = ["Class1", "Class2", "Class3",
 # print(df_closest)
 
 
-
 df_metrics_pre_s = pd.concat([compute_metrics_pre_postproc(results_new_simpl, cls) for cls in classes], ignore_index=True)
 df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_pp, cls) for cls in classes], ignore_index=True)
 # df_metrics_pre.to_csv("27_12_metrics_pre_simpl.csv", index=False)
@@ -1616,168 +1469,62 @@ df_metrics_post_s = pd.concat([compute_metrics_postproc(results_combined_new_s_p
 
 # ========== JEDEN PLIK WYNIKOWY ==================
 
-df_fit_pre  = prepare_metrics_df(
-    df_metrics_pre,
-    "dopasowany – przed postprocessingiem"
-)
-
-df_fit_post = prepare_metrics_df(
-    df_metrics_post,
-    "dopasowany – po postprocessingu"
-)
-
-df_s_pre = prepare_metrics_df(
-    df_metrics_pre_s,
-    "uproszczony – przed postprocessingiem"
-)
-
-df_s_post = prepare_metrics_df(
-    df_metrics_post_s,
-    "uproszczony – po postprocessingu"
-)
-
-df_metrics_all = pd.concat(
-    [df_fit_pre, df_fit_post, df_s_pre, df_s_post],
-    ignore_index=True
-)
-
-df_metrics_all = df_metrics_all[
-    ["Class", "Peak", "Version",
-     "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error",
-     "TP", "FP", "FN"]
-]
-
-version_order = [
-    "dopasowany – przed postprocessingiem",
-    "dopasowany – po postprocessingu",
-    "uproszczony – przed postprocessingiem",
-    "uproszczony – po postprocessingu"
-]
-
-df_metrics_all["Version"] = pd.Categorical(
-    df_metrics_all["Version"],
-    categories=version_order,
-    ordered=True
-)
-
-
-df_metrics_all = df_metrics_all.sort_values(
-    ["Class", "Peak", "Version"]
-).reset_index(drop=True)
-
-df_metrics_all.to_csv("NEW_metrics_4_01.csv", index=False)
-
-
-
-
-# =========== WILCOXON ====================
-# ============================================
-
-# expected_peaks = ["P1","P2","P3"]
-# wilcoxon_results = run_wilcoxon_pipeline(results_combined_new_pp, results_combined_new_s_pp, expected_peaks)
-# print(wilcoxon_results)
-
-# # 2. Obliczenie wyniku GLOBALNEGO (dla całej pracy)
-# # Łączymy wszystkie pary dxy z wyników szczegółowych w jeden wektor
-# df_new = compute_dxy_per_peak(results_combined_new_pp, expected_peaks)
-# df_simpl = compute_dxy_per_peak(results_combined_new_s_pp, expected_peaks)
-# merged_global = merge_dxy_for_wilcoxon(df_new, df_simpl)
-
-# # Wykonujemy test na całości danych
-
-# stat_glob, p_glob = wilcoxon(merged_global["dxy_new"], 
-#                              merged_global["dxy_new_simpl"], 
-#                              zero_method="pratt")
-
-# print(f"\n--- WYNIK GLOBALNY ---")
-# print(f"Suma par do testu: {len(merged_global)}")
-# print(f"p-value globalne: {p_glob:.20f}")
-
-# # Test jednostronny: czy błąd 'new' jest ISTOTNIE MNIEJSZY niż 'simpl'?
-# stat, p_less = wilcoxon(merged_global["dxy_new"], 
-#                         merged_global["dxy_new_simpl"], 
-#                         alternative='less', 
-#                         zero_method="pratt")
-
-# if p_less < 0.05:
-#     print("Algorytm dopasowany ma istotnie mniejsze błędy (ma przewagę).")
-# else: print("Łojojo") 
-
-# tp_total_new = df_metrics_post['TP'].sum()
-# tp_total_simpl = df_metrics_post_s['TP'].sum()
-
-# summary = {
-#     "Dopasowany": {
-#         "TP_total": tp_total_new, 
-#         "Mean_Err": df_new['dxy'].mean()
-#     },
-#     "Uproszczony": {
-#         "TP_total": tp_total_simpl, 
-#         "Mean_Err": df_simpl['dxy'].mean()
-#     }
-# }
-
-# print(f"Suma TP (Dopasowany): {tp_total_new}")
-# print(f"Suma TP (Uproszczony): {tp_total_simpl}")
-
-# diff = merged_global["dxy_new"] - merged_global["dxy_new_simpl"]
-# print(diff.median(), diff.mean())
-
-
-# merged_before = pd.merge(
-#     df_new,
-#     df_simpl,
-#     on=["file","class","peak"],
-#     suffixes=("_new","_new_simpl")
+# df_fit_pre  = prepare_metrics_df(
+#     df_metrics_pre,
+#     "dopasowany – przed postprocessingiem"
 # )
 
-# merged_after = merged_before.dropna(
-#     subset=["dxy_new","dxy_new_simpl"]
+# df_fit_post = prepare_metrics_df(
+#     df_metrics_post,
+#     "dopasowany – po postprocessingu"
 # )
 
-# print(len(merged_before))
-# print(len(merged_after))
+# df_s_pre = prepare_metrics_df(
+#     df_metrics_pre_s,
+#     "uproszczony – przed postprocessingiem"
+# )
+
+# df_s_post = prepare_metrics_df(
+#     df_metrics_post_s,
+#     "uproszczony – po postprocessingu"
+# )
+
+# df_metrics_all = pd.concat(
+#     [df_fit_pre, df_fit_post, df_s_pre, df_s_post],
+#     ignore_index=True
+# )
+
+# df_metrics_all = df_metrics_all[
+#     ["Class", "Peak", "Version",
+#      "Mean_X_Error", "Mean_Y_Error", "Mean_XY_Error",
+#      "TP", "FP", "FN"]
+# ]
+
+# version_order = [
+#     "dopasowany – przed postprocessingiem",
+#     "dopasowany – po postprocessingu",
+#     "uproszczony – przed postprocessingiem",
+#     "uproszczony – po postprocessingu"
+# ]
+
+# df_metrics_all["Version"] = pd.Categorical(
+#     df_metrics_all["Version"],
+#     categories=version_order,
+#     ordered=True
+# )
 
 
-# def plot_error_comparison(merged_df):
-#     plt.figure(figsize=(8, 8))
-    
-#     # Dane do wykresu
-#     x = merged_df["dxy_new_simpl"]
-#     y = merged_df["dxy_new"]
-    
-#     # Wykres rozrzutu
-#     plt.scatter(x, y, alpha=0.5, color='royalblue', label='Pary detekcji')
-    
-#     # Linia y = x (linia odniesienia)
-#     max_val = max(x.max(), y.max())
-#     plt.plot([0, max_val], [0, max_val], color='red', linestyle='--', label='y = x (Błędy równe)')
-    
-#     # Formatowanie
-#     plt.title('Porównanie błędów lokalizacji pików: Wariant dopasowany vs uproszczony', fontsize=12)
-#     plt.xlabel('Błąd wariantu uproszczonego [dxy_simpl]', fontsize=10)
-#     plt.ylabel('Błąd wariantu dopasowanego [dxy_new]', fontsize=10)
-    
-#     # Dodanie legendy i siatki
-#     plt.legend()
-#     plt.grid(True, linestyle=':', alpha=0.6)
-    
-#     # Opcjonalnie: wypełnienie obszaru pod linią (obszar sukcesu Twojego algorytmu)
-#     plt.fill_between([0, max_val], [0, max_val], color='green', alpha=0.05, label='Przewaga wariantu dopasowanego')
-    
-#     plt.tight_layout()
-#     plt.show()
+# df_metrics_all = df_metrics_all.sort_values(
+#     ["Class", "Peak", "Version"]
+# ).reset_index(drop=True)
 
-# # Wywołanie
-# plot_error_comparison(merged_global)
+# df_metrics_all.to_csv("NEW_metrics_4_01.csv", index=False)
 
-
-# =====================================================
 
 
 # for cls in classes:
 #     plot_files_in_class(results_combined_new_s_pp, cls)
-
+"""
 classes = ["Class1", "Class2", "Class3"]
 for class_id in classes:
     # plot_upset_classic_postproc(results_combined_new_s, class_id)
@@ -1794,37 +1541,7 @@ plt.savefig(
     format="pdf",
     bbox_inches="tight"
 )
-
-# # wariant a
-# df_metrics_a_pre = pd.concat([compute_metrics_pre_postproc(results_a_it2, cls) for cls in classes], ignore_index=True)
-# df_metrics_a_post = pd.concat([compute_metrics_postproc(results_combined_a_it2_pp, cls) for cls in classes], ignore_index=True)
-
-# # wariant b
-# df_metrics_b_pre = pd.concat([compute_metrics_pre_postproc(results_b_it2, cls) for cls in classes], ignore_index=True)
-# df_metrics_b_post = pd.concat([compute_metrics_postproc(results_combined_b_it2_pp, cls) for cls in classes], ignore_index=True)
-
-# df_metrics_a_pre.to_csv("metrics_a_pre.csv", index=False)
-# df_metrics_a_post.to_csv("metrics_a_post.csv", index=False)
-# df_metrics_b_pre.to_csv("metrics_b_pre.csv", index=False)
-# df_metrics_b_post.to_csv("metrics_b_post.csv", index=False)
-
-# plot_files_in_class(results_combined_a_it2_pp, "Class1")
-# plot_files_in_class(results_combined_a_it2_pp, "Class2")
-# plot_files_in_class(results_combined_a_it2_pp, "Class3")
-# plot_files_in_class(results_combined_a_it2_pp, "Class4")
-
-# plot_files_in_class(results_combined_b_it2_pp, "Class1")
-# plot_files_in_class(results_combined_b_it2_pp, "Class2")
-# plot_files_in_class(results_combined_b_it2_pp, "Class3")
-# plot_files_in_class(results_combined_b_it2_pp, "Class4")
-
-# classes = ["Class1", "Class2", "Class3",]
-# for class_id in classes:
-#     plot_upset_classic_postproc(results_combined_a_it2_pp, class_id)
-#     plot_upset_classic_postproc(results_combined_b_it2_pp, class_id)
-
-# df_pogladowe_a_it2_pp['Class'] = df_pogladowe_a_it2_pp['file'].str.split('_').str[0]
-
+"""
 
 # plot_signal_pre_post(
 #     results_combined_new,
@@ -1870,67 +1587,21 @@ plt.savefig(
 # plot_signal_with_concave_areas(it1, "Class1_example_0028")
 
 
+df_fitted = build_error_dataframe(results_combined_new_pp)
+df_simplified = build_error_dataframe(results_combined_new_s_pp)
 
-# mask = (
-#     (df_pogladowe_a_it2_pp["Class"] == "Class3") &
-#     df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#         lambda d:
-#             not (isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))) and
-#             not (isinstance(d.get("P2"), float) and math.isnan(d.get("P2"))) and
-#             not (isinstance(d.get("P3"), float) and math.isnan(d.get("P3")))
-#     )
-# )
-
-# df_all_peaks_class3 = df_pogladowe_a_it2_pp[mask]
-
-# print(df_all_peaks_class3[["file", "peaks_detected"]])
-# print(f"\nLiczba sygnałów Class3 z wykrytymi P1, P2 i P3: {len(df_all_peaks_class3)}")
-
-# mask_complement = (
-#     (df_pogladowe_a_it2_pp["Class"] == "Class3") &
-#     df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#         lambda d:
-#             (isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))) or
-#             (isinstance(d.get("P2"), float) and math.isnan(d.get("P2"))) or
-#             (isinstance(d.get("P3"), float) and math.isnan(d.get("P3")))
-#     )
-# )
-
-# df_not_all_peaks_class3 = df_pogladowe_a_it2_pp[mask_complement]
-
-# print(df_not_all_peaks_class3[["file", "peaks_detected"]])
-# print(f"\nLiczba sygnałów Class3 BEZ kompletu P1–P2–P3: {len(df_not_all_peaks_class3)}")
-# mask = (df_pogladowe_a_it2_pp["Class"] == "Class3") & df_pogladowe_a_it2_pp["peaks_detected"].apply(
-#     lambda d: isinstance(d.get("P1"), float) and math.isnan(d.get("P1"))
-# )
-
-# df_missing_p1 = df_pogladowe_a_it2_pp[mask]
-
-# # Wyświetlamy
-# print(df_missing_p1)
-
-# plot_peak_detection_pie(results_combined_a_it2_pp, "Class4", peak="P2")
-# plot_peak_detection_pie(results_combined_b_it2_pp, "Class4", peak="P2")
+df_pairs = prepare_paired_dataset(
+    df_fitted,
+    df_simplified,
+    value_col="Mean_XY_Error",
+    id_cols=("Filename", "Class", "Peak")
+)
 
 
-# mask = df_pogladowe_a_pp["peaks_detected"].apply(
-#     lambda d: any(len(d[p]) > 1 for p in ["P2"])
-# )
-# rows_multi_a = df_pogladowe_a_pp[mask]
-# print(rows_multi_a)
-# mask = df_pogladowe_a_pp["peaks_detected"].apply(
-#     lambda d: any(len(d[p]) > 1 for p in ["P1", "P2", "P3"])
-# )
-# rows_multi_a = df_pogladowe_a_pp[mask]
-# print(rows_multi_a)
+# 2. OPCJA A – jeden test, jeden wiersz
+summary_A = wilcoxon_option_A(df_pairs)
 
-# count_a = df_pogladowe_a["peaks_detected"].apply(
-#     lambda d: len(d["P1"]) == 0 or len(d["P2"]) == 0 or len(d["P3"]) == 0
-# ).sum()
+# 3. (opcjonalnie) pełna tabela 4.9
+table_49 = wilcoxon_by_class_and_peak(df_pairs)
 
-# empty_lists_count_a = df_pogladowe_a["peaks_detected"].apply(
-#     lambda d: (len(d["P1"]) == 0) + (len(d["P2"]) == 0) + (len(d["P3"]) == 0)
-# ).sum()
-
-# print(count_a, empty_lists_count_a)
-
+table_49 = add_summary_row(table_49, df_pairs)

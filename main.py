@@ -18,7 +18,8 @@ from all_plots import (plot_all_signals_with_peaks_final, plot_concave_signals,
                        plot_two_signals_with_crossings_binary,
                        plot_threshold_prominence, 
                        plot_punkty_charakterystyczne,
-                       plot_concave_threshold_comparison)
+                       plot_concave_threshold_comparison,
+                       plot_column_crossing)
 
 import time as tme
 import matplotlib.pyplot as plt
@@ -699,10 +700,25 @@ if __name__ == "__main__":
 
     results = process_all_datasets(datasets, df_ranges_time, df_ranges_amps, tuned_params=tuned_params)
     
+    
+    plot_column_crossing()
+    
     # plot_threshold_prominence(it1, 47)
     # plt.savefig("rysunki/paremetry_find_peaks.pdf", 
     #             format="pdf", bbox_inches=None)
 
+    # det = peak_detection(
+    # dataset=it1,          # albo it1_smooth_3Hz
+    # method_name="hilbert",           # wybrana metoda
+    # time_ranges=None,  # odpowiednie zakresy
+    # amp_ranges=None,   # odpowiednie zakresy
+    # ranges_name="none",
+    # tuned_params=None                # jeśli nie używasz concave_tuned
+    # )   
+    
+    # plot_all_signals_with_peaks(det, "hilbert", "none")
+    # plt.savefig("rysunki/bez_zakresow_hilbert.pdf", format="pdf", bbox_inches=None)
+    
     # det = peak_detection(
     # dataset=it1,          # albo it1_smooth_3Hz
     # method_name="curvature",           # wybrana metoda
