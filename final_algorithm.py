@@ -215,204 +215,6 @@ def combine_peaks_by_file(results, expected_peaks=("P1", "P2", "P3")):
     return list(combined.values())
 
 
-
-# def postprocess_peaks_new(results_combined):
-#     """
-#     Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
-#     """
-
-#     results_post=copy.deepcopy(results_combined)
-
-#     for item in results_post:
-#         class_id = item["class"]
-#         peaks = item["peaks_detected"]
-
-#         # pomocnicze
-#         def mean_peak(p):
-#             return [int(round(np.mean(p)))] if len(p) > 0 else []
-
-#         def first_peak(p):
-#             return [int(p[0])] if len(p) > 0 else []
-
-#         def last_peak(p):
-#             return [int(p[-1])] if len(p) > 0 else []
-        
-#         def middle_peak(p):
-#             """
-#             Środkowy element listy.
-#             Dla parzystej liczby → wcześniejszy z dwóch środkowych.
-#             """
-#             if len(p) == 0:
-#                 return []
-#             idx = (len(p) - 1) // 2
-#             return [int(p[idx])]
-        
-#         def second_peak(p):
-#             """
-#             Drugi element listy (drugi w czasie).
-#             Jeśli <2 elementy → [].
-#             """
-#             if len(p) >= 2:
-#                 return [int(p[1])]
-#             return p
-                
-#         def _finalize_peaks(peaks):
-#             """
-#             []  -> np.nan
-#             [x] -> x
-#             """
-#             out = {}
-#             for k, v in peaks.items():
-#                 if len(v) == 0:
-#                     out[k] = np.nan
-#                 else:
-#                     out[k] = int(v[0])
-#             return out
-
-#         # =========================
-#         # -------- Class1 ---------
-#         # =========================
-#         if class_id == "Class1":
-
-            
-#             # P3: jeśli dwa → zostaw późniejszy
-#             # ZMIANA! drugi
-#             peaks["P3"] = second_peak(peaks["P3"])
-
-#             # P1: jeśli kilka → średnia
-#             peaks["P1"] = first_peak(peaks["P1"])
-
-#             # P2: jesli kilka - sredni (brak info)
-#             peaks["P2"] = first_peak(peaks["P2"])
-
-#             # jeśli P2 i P3 zbyt blisko → usuń oba
-#             if peaks["P2"] and peaks["P3"]:
-#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
-#                     peaks["P2"] = []
-#                     peaks["P3"] = []
-#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
-            
-#             # --- NOWY WARUNEK (Class1): P3 pomiędzy dwoma P2 ---
-#             if len(peaks["P2"]) == 2 and len(peaks["P3"]) == 1:
-#                 x, y = min(peaks["P2"]), max(peaks["P2"])
-#                 z = peaks["P3"][0]
-#                 if x < z < y:
-#                     peaks["P2"] = []
-            
-#             # warunek P1 < P2 < P3
-#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
-#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
-#                     # jeśli P3 jest najpóźniejszy → zostaw tylko P3
-#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                     else:
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                         peaks["P3"] = []
-
-#         # =========================
-#         # -------- Class2 ---------
-#         # =========================
-#         elif class_id == "Class2":
-
-
-#             # # jeśli P2 i P3 zbyt blisko → usuń P3
-#             # if peaks["P2"] and peaks["P3"]:
-#             #     p2_val = peaks["P2"][0]
-#             #     peaks["P3"] = [p for p in peaks["P3"] if abs(p - p2_val) > 5]
-            
-#             # P3: jeśli 2 → drugi, jeśli >2 → środkowy
-#             # if len(peaks["P3"]) == 2:
-#             #     peaks["P3"] = [peaks["P3"][1]]
-#             # else:
-#             #     peaks["P3"] = middle_peak(peaks["P3"])
-            
-#             peaks["P3"] = second_peak(peaks["P3"])
-            
-#             # if peaks["P3"]:
-#             #     peaks["P2"] = [p for p in peaks["P2"] if p <= peaks["P3"][0]]
-#             # # P2: ostatni, a jeśli dokładnie 3 → środkowy
-#             # if len(peaks["P2"]) == 3:
-#             #     peaks["P2"] = middle_peak(peaks["P2"])
-#             # else:
-#             #     peaks["P2"] = last_peak(peaks["P2"])
-            
-#             peaks["P2"] = first_peak(peaks["P2"])
-            
-#             # P1: pierwszy
-#             peaks["P1"] = first_peak(peaks["P1"])
-            
-#             # jeśli P2 i P3 zbyt blisko → usuń oba
-#             if peaks["P2"] and peaks["P3"]:
-#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
-#                     peaks["P2"] = []
-#                     peaks["P3"] = []
-#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
-                    
-#             # warunek P1 < P2 < P3
-#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
-#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
-#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                     else:
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                         peaks["P3"] = []
-
-#         # =========================
-#         # -------- Class3 ---------
-#         # =========================
-#         # elif class_id == "Class3":
-
-            
-#             # P3: średnia ZMIANA drugi
-#             # peaks["P3"] = last_peak(peaks["P3"])
-#             peaks["P3"] = second_peak(peaks["P3"])
-
-#             # P1: first -> zmiana na last
-#             # peaks["P1"] = first_peak(peaks["P1"])
-#             peaks["P1"] = last_peak(peaks["P1"])
-
-#             # P2: pierwszy
-#             peaks["P2"] = first_peak(peaks["P2"])
-
-#             # # jeśli P2 i P3 zbyt blisko → usuń P3
-#             # if peaks["P2"] and peaks["P3"]:
-#             #     if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
-#             #         peaks["P3"] = []
-#             # jeśli P2 i P3 zbyt blisko → usuń oba
-#             if peaks["P2"] and peaks["P3"]:
-#                 if abs(peaks["P3"][0] - peaks["P2"][0]) <= 5:
-#                     peaks["P2"] = []
-#                     peaks["P3"] = []
-#                     # peaks["P3"] = peaks["P3"][1:] # zmiana
-            
-#             if peaks["P1"] and peaks["P2"] and peaks["P3"]:
-#                 if not (peaks["P1"][0] < peaks["P2"][0] < peaks["P3"][0]):
-#                     if peaks["P3"][0] > max(peaks["P1"][0], peaks["P2"][0]):
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                     else:
-#                         peaks["P1"] = []
-#                         peaks["P2"] = []
-#                         peaks["P3"] = []
-
-#         # =========================
-#         # -------- Class4 ---------
-#         # =========================
-#         elif class_id == "Class4":
-#             # tylko P2, jeśli kilka → średnia
-#             peaks["P2"] = middle_peak(peaks["P2"])
-#             peaks["P1"] = []
-#             peaks["P3"] = []
-            
-#         item["peaks_detected"] = _finalize_peaks(peaks)
-
-#     return results_post
-
-
 def postprocess_peaks(results_combined):
     """
     Postprocess peaks_detected zgodnie z regułami DALSZE DZIAŁANIA.
@@ -591,92 +393,6 @@ def postprocess_peaks(results_combined):
         item["peaks_detected"] = _finalize_peaks(peaks)
 
     return results_post
-
-# def compute_peak_metrics_all_peaks(detection_results, class_name):
-#     """
-#     Łączy metryki wszystkich pików P1, P2, P3 dla każdego pliku/metody.
-#     Zwraca DataFrame z osobnymi błędami i liczby pików dla P1,P2,P3,
-#     Signals_with_all_Peaks i Num_Signals_in_Class.
-#     Obsługuje brakujące piki w klasach.
-#     """
-#     expected_peaks = ["P1", "P2", "P3"]
-
-#     # filtrowanie po klasie
-#     class_signals = [item for item in detection_results if item["class"] == class_name]
-
-#     # grupujemy po file i metodzie
-#     grouped = {}
-#     for item in class_signals:
-#         key = (item["file"], item["method"])
-#         if key not in grouped:
-#             grouped[key] = {}
-#         grouped[key][item["peak"]] = item
-
-#     metrics_list = []
-
-#     for (file_name, method_name), peaks_dict in grouped.items():
-#         row = {
-#             "Class": class_name,
-#             "File": file_name,
-#             "Method": method_name,
-#         }
-
-#         signals_all_detected = True  # czy wszystkie oczekiwane piki są wykryte w tym pliku
-
-#         for peak in expected_peaks:
-#             item = peaks_dict.get(peak)
-#             if item is None:
-#                 # brak piku w danym pliku
-#                 row.update({
-#                     f"Mean_X_Error_{peak}": np.nan,
-#                     f"Mean_Y_Error_{peak}": np.nan,
-#                     f"Mean_XY_Error_{peak}": np.nan,
-#                     f"Min_XY_Error_{peak}": np.nan,
-#                     f"Peak_Count_{peak}": 0
-#                 })
-#                 signals_all_detected = False
-#                 continue
-
-#             ref_idx = item["peaks_ref"].get(peak)
-#             detected = item["peaks_detected"].get(peak, [])
-
-#             sig_df = item["signal"]
-#             t = sig_df.iloc[:, 0].values
-#             y = sig_df.iloc[:, 1].values
-
-#             if ref_idx is None or len(detected) == 0:
-#                 dx = dy = dxy = np.array([np.nan])
-#                 peak_count = 0
-#                 signals_all_detected = False
-#             else:
-#                 t_detected = t[detected]
-#                 y_detected = y[detected]
-#                 if np.isscalar(ref_idx):
-#                     dx = abs(t_detected - t[ref_idx])
-#                     dy = abs(y_detected - y[ref_idx])
-#                 else:
-#                     dx = np.min([abs(t_detected - t[r]) for r in ref_idx], axis=0)
-#                     dy = np.min([abs(y_detected - y[r]) for r in ref_idx], axis=0)
-#                 dxy = np.sqrt(dx**2 + dy**2)
-#                 peak_count = len(detected)
-
-#             row.update({
-#                 f"Mean_X_Error_{peak}": np.mean(dx),
-#                 f"Mean_Y_Error_{peak}": np.mean(dy),
-#                 f"Mean_XY_Error_{peak}": np.mean(dxy),
-#                 f"Min_XY_Error_{peak}": np.min(dxy),
-#                 f"Peak_Count_{peak}": peak_count
-#             })
-
-#         row["Signals_with_all_Peaks"] = int(signals_all_detected)
-#         metrics_list.append(row)
-
-#     df_metrics = pd.DataFrame(metrics_list)
-
-#     # Num_Signals_in_Class = liczba wszystkich plików w klasie
-#     df_metrics["Num_Signals_in_Class"] = len(class_signals)
-
-#     return df_metrics
 
 
 def has_peak(v):
@@ -1033,6 +749,9 @@ def wilcoxon_option_A(df_pairs):
 
     errors_fitted = df_pairs["Error_fitted"]
     errors_simplified = df_pairs["Error_simplified"]
+    
+    diff_all = df_pairs["Error_fitted"] - df_pairs["Error_simplified"]
+
 
     stat, p_value = wilcoxon_safe(
         errors_fitted,
@@ -1043,16 +762,18 @@ def wilcoxon_option_A(df_pairs):
     stats = {
         "N_total_pairs": len(df_pairs),
         
-        "Mean_fitted": np.mean(errors_fitted),
+        # "Mean_fitted": np.mean(errors_fitted),
         "Median_fitted": np.median(errors_fitted),
         "Q1_fitted": np.percentile(errors_fitted, 25),
         "Q3_fitted": np.percentile(errors_fitted, 75),
         
-        "Mean_simplified": np.mean(errors_simplified),
+        # "Mean_simplified": np.mean(errors_simplified),
         "Median_simplified": np.median(errors_simplified),
         "Q1_simplified": np.percentile(errors_simplified, 25),
         "Q3_simplified": np.percentile(errors_simplified, 75),
-        "Wilcoxon_stat": stat,
+        # "Wilcoxon_stat": stat,
+        
+        "Median_diff": np.median(diff_all),
         "p_value": p_value
     }
 
@@ -1068,7 +789,9 @@ def wilcoxon_by_class_and_peak(df_pairs):
     for (cls, peak), group in df_pairs.groupby(["Class", "Peak"]):
         if len(group) < 5:
             continue  # zbyt mało par – brak sensu statystycznego
-
+        
+        diff = group["Error_fitted"] - group["Error_simplified"]
+        
         stat, p = wilcoxon_safe(
             group["Error_fitted"],
             group["Error_simplified"],
@@ -1079,14 +802,16 @@ def wilcoxon_by_class_and_peak(df_pairs):
             "Class": cls,
             "Peak": peak,
             "N_used": len(group),
-            "Mean_fitted": np.mean(group["Error_fitted"]),
+            # "Mean_fitted": np.mean(group["Error_fitted"]),
             "Median_fitted": np.median(group["Error_fitted"]),
             "Q1_fitted": np.percentile(group["Error_fitted"], 25),
             "Q3_fitted": np.percentile(group["Error_fitted"], 75),
-            "Mean_simplified": np.mean(group["Error_simplified"]),
+            # "Mean_simplified": np.mean(group["Error_simplified"]),
             "Median_simplified": np.median(group["Error_simplified"]),
             "Q1_simplified": np.percentile(group["Error_simplified"], 25),
             "Q3_simplified": np.percentile(group["Error_simplified"], 75),
+            
+            "Median_diff": np.median(diff),
             "p_value": p
         })
 
@@ -1101,21 +826,22 @@ def add_summary_row(df_by_class, df_pairs):
     summary_stats = wilcoxon_option_A(df_pairs)
     
     # Obliczamy średnie błędy po wszystkich parach
-    mean_fitted = df_pairs["Error_fitted"].mean()
-    mean_simplified = df_pairs["Error_simplified"].mean()
+    # mean_fitted = df_pairs["Error_fitted"].mean()
+    # mean_simplified = df_pairs["Error_simplified"].mean()
     
     summary_row = {
         "Class": "ALL",
         "Peak": "ALL",
         "N_used": summary_stats["N_total_pairs"],
-        "Mean_fitted": mean_fitted,
+        # "Mean_fitted": mean_fitted,
         "Median_fitted": summary_stats["Median_fitted"],
         "Q1_fitted": summary_stats["Q1_fitted"],
         "Q3_fitted": summary_stats["Q3_fitted"],
-        "Mean_simplified": mean_simplified,
+        # "Mean_simplified": mean_simplified,
         "Median_simplified": summary_stats["Median_simplified"],
         "Q1_simplified": summary_stats["Q1_simplified"],
         "Q3_simplified": summary_stats["Q3_simplified"],
+        "Median_diff": summary_stats["Median_diff"],
         "p_value": summary_stats["p_value"]
     }
     
